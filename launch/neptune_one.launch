@@ -1,0 +1,28 @@
+<!-- Launch file for Neptune drone -->
+<launch>
+	<arg name="fcu_url" default="/dev/ttyACM0:57600" />
+	<arg name="ai" default="false" />
+	<arg name="sim" default="false" />
+
+<!-- Launch Mavros, fcu_urc coresponds to pixhawk port -->
+
+	<include file="$(find mavros)/launch/apm.launch" unless="$(arg sim)">
+		<!--arg name="fcu_url" value="$(arg fcu_url)"/-->
+	</include>
+
+	<include file="$(find neptune)/launch/apmSITL.launch" if="$(arg sim)"/>
+
+<!-- Node to control the flight modes. (for ai and human) -->
+
+	<!--node pkg="neptune" type="ai_takeover" name="ai_takeover"
+	args=""
+	if="$(arg ai)" /-->
+
+	<node pkg="neptune" type="mode" name="mode"
+	args=""
+	output="screen"
+	respawn="true"
+	unless="$(arg ai)" />
+
+
+</launch>
