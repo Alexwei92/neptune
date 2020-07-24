@@ -9,9 +9,15 @@ add_compile_options(-std=c++11)
 ## is used, also find other catkin packages
 
 
-find_package(catkin REQUIRED COMPONENTS roscpp)
-find_package(Eigen3 REQUIRED)
-
+find_package(catkin REQUIRED COMPONENTS 
+    roscpp
+    rosbag
+    std_msgs
+    sensor_msgs
+    theora_image_transport
+    nav_msgs
+    mavros_msgs
+)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -117,8 +123,8 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
- include
- ${catkin_INCLUDE_DIRS}
+## include
+  ${catkin_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -150,6 +156,9 @@ include_directories(
 # target_link_libraries(${PROJECT_NAME}_node
 #   ${catkin_LIBRARIES}
 # )
+
+add_executable(listener src/listener.cpp)
+target_link_libraries(listener ${catkin_LIBRARIES})
 
 #############
 ## Install ##
@@ -214,3 +223,6 @@ include_directories(
 #add_executable(record src/record.cpp)
 #target_link_libraries(record ${catkin_LIBRARIES})
 #add_dependencies(record rosspawn_gencpp)
+
+#add_executable(bagread src/bagread.py)
+#target_link_libraries(bagread ${catkin_LIBRARIES})

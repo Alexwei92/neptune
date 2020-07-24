@@ -25,12 +25,7 @@
   <!-- Author tags are optional, multiple are allowed, one per tag -->
   <!-- Authors do not have to be maintainers, but could be -->
   <!-- Example: -->
-  <!-- <author email="jane.doe@example.com">Jane Doe</author> -->
-
-
-  <build_depend>roscpp</build_depend>
-  <exec_depend>roscpp</exec_depend>
-  
+  <!-- <author email="jane.doe@example.com">Jane Doe</author> --> 
 
   <!-- The *depend tags are used to specify dependencies -->
   <!-- Dependencies can be catkin packages or system dependencies -->
@@ -53,8 +48,14 @@
   <!-- Use doc_depend for packages you need only for building documentation: -->
   <!--   <doc_depend>doxygen</doc_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
-
-
+  <depend>roscpp</depend>
+  <depend>rosbag</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>theora_image_transport</depend>
+  <depend>nav_msgs</depend>
+  <depend>mavros_msgs</depend>
+  
   <!-- The export tag contains other, unspecified, tags -->
   <export>
     <!-- Other tools can request additional information be placed here -->

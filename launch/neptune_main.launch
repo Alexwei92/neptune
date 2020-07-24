@@ -1,0 +1,17 @@
+<!-- Launch file for NEPTUNE project -->
+<!-- This is the main launch file -->>
+<launch>
+	<arg name="fcu_url" default="/dev/ttyACM0:57600" />
+	<arg name="ai" default="false" />
+
+
+	<include file="$(find mavros)/launch/apm.launch">
+		<arg name="fcu_url" value="$(arg fcu_url)" />
+	</include>
+
+	<node pkg="neptune" type="listener" name="listener" output=screen />
+	<!--node pkg="rosbag" type="record" name="rosbag_record_cam"
+       args="record -o /home/lab/bags/neptune /mavros/global_position/local /mavros/global_position/rel_alt /mavros/local_position/velocity_body /mavros/vfr_hud  mavros/rc/in /mavros/state"
+    /-->
+
+</launch>
