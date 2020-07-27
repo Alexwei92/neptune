@@ -26,10 +26,10 @@ class Listener
 
         _loop_rate = loop_rate;
 
-        _color_sub  = _n.subscribe("/camera/color/image_raw/compressed", 10, &Listener::updateColor, this);
-        _depth_sub  = _n.subscribe("/camera/depth/image_rect_raw/compressed", 10, &Listener::updateDepth, this);
-        _infra1_sub = _n.subscribe("/camera/infra1/image_rect_raw/compressed", 10, &Listener::updateInfra1, this);
-        _infra2_sub = _n.subscribe("/camera/infra2/image_rect_raw/compressed", 10, &Listener::updateInfra2, this);
+        _color_sub  = _n.subscribe("/camera/color/image_raw", 10, &Listener::updateColor, this);
+        _depth_sub  = _n.subscribe("/camera/depth/image_rect_raw", 10, &Listener::updateDepth, this);
+        // _infra1_sub = _n.subscribe("/camera/infra1/image_rect_raw", 10, &Listener::updateInfra1, this);
+        // _infra2_sub = _n.subscribe("/camera/infra2/image_rect_raw", 10, &Listener::updateInfra2, this);
 
         _local_position_sub = _n.subscribe("/mavros/global_position/local", 10, &Listener::updateLocalPosition, this);
         _rel_alt_sub = _n.subscribe("/mavros/global_position/rel_alt", 10, &Listener::updateAlt, this);
@@ -54,10 +54,10 @@ class Listener
 
     void iteration(const ros::TimerEvent&)
     {
-        _bag.write("/camera/color/image_raw/compressed", ros::Time::now(), _color_image_compressed);
-        _bag.write("/camera/depth/image_rect_raw/compressed", ros::Time::now(), _depth_image_compressed);
-        _bag.write("/camera/infra1/image_rect_aw/compressed", ros::Time::now(), _infra1_image_compressed);
-        _bag.write("/camera/infra2/image_rect_raw/compressed", ros::Time::now(), _infra2_image_compressed);
+        _bag.write("/camera/color/image_raw", ros::Time::now(), _color_image);
+        _bag.write("/camera/depth/image_rect_raw", ros::Time::now(), _depth_image);
+        // _bag.write("/camera/infra1/image_rect_aw/compressed", ros::Time::now(), _infra1_image_compressed);
+        // _bag.write("/camera/infra2/image_rect_raw/compressed", ros::Time::now(), _infra2_image_compressed);
         _bag.write("/mavros/global_position/local", ros::Time::now(), _local_position);
         _bag.write("/mavros/global_position/rel_alt", ros::Time::now(), _rel_alt);
         _bag.write("/mavros/local_position/velocity_body", ros::Time::now(), _vel_body);
@@ -67,28 +67,28 @@ class Listener
 
     /*       */
     // Color Image
-    void updateColor(const sensor_msgs::CompressedImage::ConstPtr& msg)
+    void updateColor(const sensor_msgs::Image::ConstPtr& msg)
     {          
-        _color_image_compressed = *msg;
+        _color_image = *msg;
     }
 
     // Depth Image
-    void updateDepth(const sensor_msgs::CompressedImage::ConstPtr& msg)
+    void updateDepth(const sensor_msgs::Image::ConstPtr& msg)
     {          
-        _depth_image_compressed = *msg;
+        _depth_image = *msg;
     }
 
-    // Infra1 Image
-    void updateInfra1(const sensor_msgs::CompressedImage::ConstPtr& msg)
-    {          
-        _infra1_image_compressed = *msg;
-    }
+    // // Infra1 Image
+    // void updateInfra1(const sensor_msgs::CompressedImage::ConstPtr& msg)
+    // {          
+    //     _infra1_image_compressed = *msg;
+    // }
 
-    // Infra2 Image
-    void updateInfra2(const sensor_msgs::CompressedImage::ConstPtr& msg)
-    {          
-        _infra2_image_compressed = *msg;
-    }
+    // // Infra2 Image
+    // void updateInfra2(const sensor_msgs::CompressedImage::ConstPtr& msg)
+    // {          
+    //     _infra2_image_compressed = *msg;
+    // }
 
     // Local Position
     void updateLocalPosition(const nav_msgs::Odometry::ConstPtr& msg)
@@ -134,18 +134,18 @@ class Listener
     rosbag::Bag _bag;
     ros::Subscriber _color_sub;
     ros::Subscriber _depth_sub;
-    ros::Subscriber _infra1_sub;
-    ros::Subscriber _infra2_sub;
+    // ros::Subscriber _infra1_sub;
+    // ros::Subscriber _infra2_sub;
     ros::Subscriber _local_position_sub;
     ros::Subscriber _rel_alt_sub;
     ros::Subscriber _vel_body_sub;
     ros::Subscriber _rc_in_sub;
     ros::Subscriber _state_sub;
 
-    sensor_msgs::CompressedImage _color_image_compressed;
-    sensor_msgs::CompressedImage _depth_image_compressed;
-    sensor_msgs::CompressedImage _infra1_image_compressed;
-    sensor_msgs::CompressedImage _infra2_image_compressed;
+    sensor_msgs::Image _color_image;
+    sensor_msgs::Image _depth_image;
+    // sensor_msgs::CompressedImage _infra1_image_compressed;
+    // sensor_msgs::CompressedImage _infra2_image_compressed;
     nav_msgs::Odometry _local_position;
     geometry_msgs::TwistStamped _vel_body;
     std_msgs::Float64 _rel_alt;
@@ -170,12 +170,12 @@ int main(int argc, char **argv)
     struct tm * timeinfo = localtime(&(now));
     char buffer [30];
     strftime(buffer,30,"%Y_%h_%d_%H_%M_%S.bag", timeinfo);
-    char filename[50] = "/home/lab/Documents/Peng/bags/";
+    char filename[50] = "/media/peng/Samsung/";
     std::strcat(filename, buffer);
 
     Listener listener(filename, rate);
+    ros::Duration(1.0).sleep(); // let Listener update its internal states
     listener.run();
-
 }
 
 // /mavros/vfr_hud  
