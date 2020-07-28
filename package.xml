@@ -52,9 +52,13 @@
   <depend>rosbag</depend>
   <depend>std_msgs</depend>
   <depend>sensor_msgs</depend>
-  <depend>theora_image_transport</depend>
   <depend>nav_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>theora_image_transport</depend>
   <depend>mavros_msgs</depend>
+
+  <build_depend>message_generation</build_depend>
+  <exec_depend>message_runtime</exec_depend>
   
   <!-- The export tag contains other, unspecified, tags -->
   <export>

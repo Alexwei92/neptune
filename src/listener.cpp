@@ -10,6 +10,7 @@
 #include <geometry_msgs/TwistStamped.h>
 #include <mavros_msgs/RCIn.h>
 #include <mavros_msgs/State.h>
+#include <neptune/Custom.h>
 
 #include <ctime>
 
@@ -27,9 +28,8 @@ class Listener
         _loop_rate = loop_rate;
 
         _color_sub  = _n.subscribe("/camera/color/image_raw", 10, &Listener::updateColor, this);
-        _depth_sub  = _n.subscribe("/camera/depth/image_rect_raw", 10, &Listener::updateDepth, this);
-        // _infra1_sub = _n.subscribe("/camera/infra1/image_rect_raw", 10, &Listener::updateInfra1, this);
-        // _infra2_sub = _n.subscribe("/camera/infra2/image_rect_raw", 10, &Listener::updateInfra2, this);
+        _depth_sub  = _n.subscribe("/camera/aligned_depth_to_color/image_raw", 10, &Listener::updateDepth, this);
+        // _depth_sub  = _n.subscribe("/camera/depth/image_rect_raw", 10, &Listener::updateDepth, this);
 
         _local_position_sub = _n.subscribe("/mavros/global_position/local", 10, &Listener::updateLocalPosition, this);
         _rel_alt_sub = _n.subscribe("/mavros/global_position/rel_alt", 10, &Listener::updateAlt, this);
@@ -54,15 +54,16 @@ class Listener
 
     void iteration(const ros::TimerEvent&)
     {
+        _telemetry.header.seq += 1;
+        _telemetry.header.stamp = ros::Time::now();
+        _bag.write("/my_telemetry", ros::Time::now(), _telemetry);
+
+        _color_image.header.seq = _telemetry.header.seq;
+        _depth_image.header.seq = _telemetry.header.seq;
         _bag.write("/camera/color/image_raw", ros::Time::now(), _color_image);
-        _bag.write("/camera/depth/image_rect_raw", ros::Time::now(), _depth_image);
-        // _bag.write("/camera/infra1/image_rect_aw/compressed", ros::Time::now(), _infra1_image_compressed);
-        // _bag.write("/camera/infra2/image_rect_raw/compressed", ros::Time::now(), _infra2_image_compressed);
-        _bag.write("/mavros/global_position/local", ros::Time::now(), _local_position);
-        _bag.write("/mavros/global_position/rel_alt", ros::Time::now(), _rel_alt);
-        _bag.write("/mavros/local_position/velocity_body", ros::Time::now(), _vel_body);
-        _bag.write("/mavros/rc/in", ros::Time::now(), _rc_in);
-        _bag.write("/mavros/state", ros::Time::now(), _state);
+        _bag.write("/camera/aligned_depth_to_color/image_raw", ros::Time::now(), _depth_image);
+
+
     }
 
     /*       */
@@ -78,53 +79,39 @@ class Listener
         _depth_image = *msg;
     }
 
-    // // Infra1 Image
-    // void updateInfra1(const sensor_msgs::CompressedImage::ConstPtr& msg)
-    // {          
-    //     _infra1_image_compressed = *msg;
-    // }
-
-    // // Infra2 Image
-    // void updateInfra2(const sensor_msgs::CompressedImage::ConstPtr& msg)
-    // {          
-    //     _infra2_image_compressed = *msg;
-    // }
-
     // Local Position
     void updateLocalPosition(const nav_msgs::Odometry::ConstPtr& msg)
     {   
-        _local_position = *msg;
+        _telemetry.pose = msg->pose;
+        _telemetry.twist = msg->twist;
+
     }
 
     // Relative Altitude
     void updateAlt(const std_msgs::Float64::ConstPtr& msg)
     {
-        _rel_alt = *msg;
+        _telemetry.rel_alt = msg->data;
+
     }
 
     // Body Velocity
     void updateVelBody(const geometry_msgs::TwistStamped::ConstPtr& msg)
     {
-        _vel_body = *msg;
+        _telemetry.vel_twist = msg->twist;
     }
 
     // RC Input
     void updateRCIn(const mavros_msgs::RCIn::ConstPtr& msg)
     {
-        _rc_in = *msg;
+        _telemetry.channels = msg->channels;
     }
 
     // State
     void updateState(const mavros_msgs::State::ConstPtr& msg)
     {
-        _state = *msg;
+        _telemetry.mode = msg->mode;
     }
 
-    // enum status
-    // {
-    //     Idle = 0,
-    //     Recording = 1,
-    // };
 
     private:
 
@@ -134,8 +121,6 @@ class Listener
     rosbag::Bag _bag;
     ros::Subscriber _color_sub;
     ros::Subscriber _depth_sub;
-    // ros::Subscriber _infra1_sub;
-    // ros::Subscriber _infra2_sub;
     ros::Subscriber _local_position_sub;
     ros::Subscriber _rel_alt_sub;
     ros::Subscriber _vel_body_sub;
@@ -144,13 +129,8 @@ class Listener
 
     sensor_msgs::Image _color_image;
     sensor_msgs::Image _depth_image;
-    // sensor_msgs::CompressedImage _infra1_image_compressed;
-    // sensor_msgs::CompressedImage _infra2_image_compressed;
-    nav_msgs::Odometry _local_position;
-    geometry_msgs::TwistStamped _vel_body;
-    std_msgs::Float64 _rel_alt;
-    mavros_msgs::RCIn _rc_in;
-    mavros_msgs::State _state;
+
+    neptune::Custom _telemetry;
 
 };
 
@@ -170,12 +150,11 @@ int main(int argc, char **argv)
     struct tm * timeinfo = localtime(&(now));
     char buffer [30];
     strftime(buffer,30,"%Y_%h_%d_%H_%M_%S.bag", timeinfo);
-    char filename[50] = "/media/peng/Samsung/";
+    //char filename[50] = "/media/peng/Samsung/";
+    char filename[50] = "/home/lab/Documents/";
     std::strcat(filename, buffer);
 
     Listener listener(filename, rate);
     ros::Duration(1.0).sleep(); // let Listener update its internal states
     listener.run();
 }
-
-// /mavros/vfr_hud  
