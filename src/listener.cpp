@@ -14,36 +14,54 @@
 
 #include <ctime>
 
+#define LOOP_RATE_DEFAULT   10.0
 
-/** A Listener Class **/
-class Listener
+
+/** A CGS_Listener Class **/
+class GCS_Listener
 {
     public:
-
-    /** Initial **/
-    Listener(char *filename, double loop_rate)
+    // Initialize
+    GCS_Listener(std::string filename, double loop_rate)
     {       
-        _bag.open(filename, rosbag::bagmode::Write);
+        try
+        {
+            _bag.open(filename, rosbag::bagmode::Write);
+            ROS_INFO("Logging file to %s", filename.c_str());
+        }
+        catch(const std::exception& e)
+        {
+            std::cerr << e.what() << '\n';
+            ros::shutdown();
+            exit(1);
+        }
+        
+        if (loop_rate > 0.0)
+        { 
+            _loop_rate = loop_rate;
+        }
+        else
+        {
+            _loop_rate = LOOP_RATE_DEFAULT;
+        }
+        
 
-        _loop_rate = loop_rate;
-
-        _color_sub  = _n.subscribe("/camera/color/image_raw", 10, &Listener::updateColor, this);
-        _depth_sub  = _n.subscribe("/camera/aligned_depth_to_color/image_raw", 10, &Listener::updateDepth, this);
+        _color_sub  = _n.subscribe("/camera/color/image_raw", 10, &GCS_Listener::updateColor, this);
+        _depth_sub  = _n.subscribe("/camera/aligned_depth_to_color/image_raw", 10, &GCS_Listener::updateDepth, this);
         // _depth_sub  = _n.subscribe("/camera/depth/image_rect_raw", 10, &Listener::updateDepth, this);
 
-        _local_position_sub = _n.subscribe("/mavros/global_position/local", 10, &Listener::updateLocalPosition, this);
-        _rel_alt_sub = _n.subscribe("/mavros/global_position/rel_alt", 10, &Listener::updateAlt, this);
-        _vel_body_sub = _n.subscribe("/mavros/local_position/velocity_body", 10, &Listener::updateVelBody, this);
-        _rc_in_sub = _n.subscribe("/mavros/rc/in", 10, &Listener::updateRCIn, this);
-        _state_sub = _n.subscribe("/mavros/state", 10, &Listener::updateState, this);
-
+        _local_position_sub = _n.subscribe("/mavros/global_position/local", 10, &GCS_Listener::updateLocalPosition, this);
+        _rel_alt_sub = _n.subscribe("/mavros/global_position/rel_alt", 10, &GCS_Listener::updateAlt, this);
+        _vel_body_sub = _n.subscribe("/mavros/local_position/velocity_body", 10, &GCS_Listener::updateVelBody, this);
+        _rc_in_sub = _n.subscribe("/mavros/rc/in", 10, &GCS_Listener::updateRCIn, this);
+        _state_sub = _n.subscribe("/mavros/state", 10, &GCS_Listener::updateState, this);
     }
 
 
-    /** Main run function**/
+    // Main run function
     void run()
     {
-        ros::Timer timer = _n.createTimer(ros::Duration(1.0/_loop_rate), &Listener::iteration, this);
+        ros::Timer timer = _n.createTimer(ros::Duration(1.0/_loop_rate), &GCS_Listener::iteration, this);
         ros::spin();
 
         _bag.close();
@@ -66,7 +84,6 @@ class Listener
 
     }
 
-    /*       */
     // Color Image
     void updateColor(const sensor_msgs::Image::ConstPtr& msg)
     {          
@@ -137,24 +154,27 @@ class Listener
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "listener");
+    // initialize ros node
+    ros::init(argc, argv, "GCS_Listener_node");
     ros::NodeHandle n;
 
-    // loop rate (default 10Hz)
+    // loop rate
     double rate;
-    n.param("rate", rate, 10.0);
+    n.param("rate", rate, LOOP_RATE_DEFAULT);
     ros::Rate loop_rate(rate);
    
     // bag file definition
+    std::string location;
+    std::string username = std::getenv("USERNAME");
+    std::string default_location = "/home/" + username + "/Documents/";
+    n.param<std::string>("location", location, default_location);
     std::time_t now = time(0);
     struct tm * timeinfo = localtime(&(now));
     char buffer [30];
     strftime(buffer,30,"%Y_%h_%d_%H_%M_%S.bag", timeinfo);
-    //char filename[50] = "/media/peng/Samsung/";
-    char filename[50] = "/home/lab/Documents/";
-    std::strcat(filename, buffer);
+    location.append(buffer);
 
-    Listener listener(filename, rate);
+    GCS_Listener listener(location, rate);
     ros::Duration(1.0).sleep(); // let Listener update its internal states
     listener.run();
 }

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-"""Extract images and telemetry data from a ROS bag.
+""" 
+Extract images and telemetry data from a ROS bag.
 """
 
 import os
@@ -15,73 +16,68 @@ import shutil, csv, string
 import __future__
 
 
-image_topics = ['/camera/color/image_raw',
-                '/camera/depth/image_rect_raw',
-]
+# define the topics in the bag file
+# TODO: put the topic definition into a global file so it can be shared among different programs
+image_topics_dict = {
+    # prefix    : [topic_name, desired_encoding]
+    'color'     : ['/camera/color/image_raw', 'bgr8'],  # not rgb8
+    'depth'     : ['/camera/aligned_depth_to_color/image_raw', '16UC1'] # 8UC1?
+    }
 
-telemetry_topics = ['/mavros/state',
-                    '/mavros/rc/in',
-                    '/mavros/local_position/velocity_body',
-                    '/mavros/global_position/rel_alt',
-                    '/mavros/global_position/local',
-                    '/camera/color/image_raw',
-                    '/camera/depth/image_rect_raw'
-]
+telemetry_topics_dict = {
+    # prefix    : [topic_name]
+    'state'     : '/mavros/state',
+    'cmd'       : '/mavros/rc/in',
+    'velocity'  : '/mavros/local_position/velocity_body',
+    'altitude'  : '/mavros/global_position/rel_alt',
+    'position'  : '/mavros/global_position/local'
+    }
 
-# write image data
-def write_image(bagfile, path_color, path_depth, path):
+
+# Write image data
+def write_image(bagfile, path):
     bridge = CvBridge()
 
-    count_color, count_color_bad = 0, 0
-    count_depth, count_depth_bad = 0, 0
+    for name in image_topics_dict.keys():
+        # counter
+        count_good, count_bad = 0, 0
 
+        # create folder to put the images in
+        path_folder = path+'/'+name
+        if not os.path.isdir(path_folder):
+            os.makedirs(path_folder)
 
-    f1 = open(path+'/'+'color_info.csv','w')
-    f2 = open(path+'/'+'depth_info.csv','w')
-    filewriter1 = csv.writer(f1, delimiter = ',')
-    filewriter2 = csv.writer(f2, delimiter = ',')
-    filewriter1.writerow(['rosbagTimestamp', 'flag'])
-    filewriter2.writerow(['rosbagTimestamp', 'flag'])
-    
-    for topic, msg, t in bagfile.read_messages(topics=image_topics):
-        values = [str(t)]
-        if topic == '/camera/color/image_raw':
+        # file handler
+        f = open(path+'/'+name+'_info.csv','w')
+        filewriter = csv.writer(f, delimiter = ',')
+        filewriter.writerow(['rosbagTimestamp', 'flag']) # flag=1 means good data, flag=0 means bad data
+
+        for topic, msg, t in bagfile.read_messages(topics=image_topics_dict[name][0]):
+            values = [str(t)]
             try:
-                cv_img_color = bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8") # not rgb8
-                #print(msg.encoding)
-                cv2.imwrite(os.path.join(path_color, "frame%06i.jpg" % count_color), cv_img_color)
-                count_color += 1
+                cv_img = bridge.imgmsg_to_cv2(msg, desired_encoding=image_topics_dict[name][1])
+                cv2.imwrite(os.path.join(path_folder, "frame%06i.jpg" % count_good), cv_img)
+                count_good += 1
                 values.append(1)
             except:
-                count_color_bad += 1
+                count_bad += 1
                 values.append(0)
                 pass
-            filewriter1.writerow(values)
-        else:
-            try:
-                cv_img_depth = bridge.imgmsg_to_cv2(msg, desired_encoding="16UC1") # 8UC1?
-                #print(msg.encoding)
-                cv2.imwrite(os.path.join(path_depth, "frame%06i.jpg" % count_depth), cv_img_depth)
-                count_depth += 1
-                values.append(1)
-            except:
-                count_depth_bad += 1
-                values.append(0)
-                pass            
-            filewriter2.writerow(values)
+            finally:
+                filewriter.writerow(values)
 
-    print("Wrote %i Color images and %i Depth images." % (count_color, count_depth))
-    if count_depth_bad+count_color_bad > 0:
-        print("[Warning: Found %i broken Color images and %i broken Depth images.]" % (count_color_bad, count_depth_bad))
+        print("Wrote %i %s images." % (count_good, name))
+        if count_bad > 0:
+            print("[Warning: Found %i broken %s images.]" % (count_bad, name))
 
-    f1.close()
-    f2.close()
+        f.close()
+
     return
 
 
-# write telemetry data
+# Write telemetry data
 def write_telemetry(bagfile, path):
-    for topic_name in telemetry_topics:
+    for topic_name in telemetry_topics_dict.values():
         count = 0
         filename = path+'/'+string.replace(topic_name, '/', '_')+'.csv'
         with open(filename, 'w+') as csvfile:
@@ -115,8 +111,7 @@ def write_telemetry(bagfile, path):
     return
 
 if __name__ == '__main__':
-    """Extract a folder of images from a rosbag.
-    """
+
     parser = argparse.ArgumentParser(description="Extract images and telemetry data from a ROS bag.")
     parser.add_argument("bag_file", help="Input ROS bag.")
     #parser.add_argument("output_dir", help="Output directory.")
@@ -133,17 +128,13 @@ if __name__ == '__main__':
 
     # Create the output directory
     path = os.path.join('./', args.bag_file[:-4])
-    path_color = path+'/'+'color'
-    path_depth = path+'/'+'depth'
-    if not os.path.isdir(path_color):
-        os.makedirs(path_color)
-    if not os.path.isdir(path_depth):
-        os.makedirs(path_depth)
+    if not os.path.isdir(path):
+        os.makedirs(path)
     shutil.copyfile(args.bag_file, path+'/'+bag.filename)
 
-    # Write color and depth images
+    # Write data
     try:
-        write_image(bag, path_color, path_depth, path)
+        write_image(bag, path)
         write_telemetry(bag, path)
         print("Successful.")
     finally:
