@@ -5,7 +5,7 @@
 	<include file="$(find mavros)/launch/apm.launch">
 		<arg name="fcu_url" value="$(arg fcu_url)" />
 		<arg name="respawn_mavros" value="true" />
-		<!--arg name="gcs_url" value="udp://:14555@127.0.0.1:14550" /-->
+		<arg name="gcs_url" value="udp://:14555@192.168.10.218:14550" />
 	</include>
 
 </launch>

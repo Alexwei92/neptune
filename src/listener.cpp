@@ -172,9 +172,14 @@ int main(int argc, char **argv)
     struct tm * timeinfo = localtime(&(now));
     char buffer [30];
     strftime(buffer,30,"%Y_%h_%d_%H_%M_%S.bag", timeinfo);
-    location.append(buffer);
+    // char filename[50] = "/home/peng/SITL_LOG/";
+    char filename[50] = "/media/peng/Samsung/";
+    //char filename[50] = "/home/lab/Documents/";
+    std::strcat(filename, buffer);
 
-    GCS_Listener listener(location, rate);
+    // GCS_Listener listener(location, rate);
+    GCS_Listener listener(filename, rate);
+
     ros::Duration(1.0).sleep(); // let Listener update its internal states
     listener.run();
 }

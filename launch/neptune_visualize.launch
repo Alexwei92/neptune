@@ -1,0 +1,8 @@
+<!-- Launch file for Neptune Recording Function -->
+<launch>
+    <node pkg="image_view" type="image_view" name="visualize">
+      <param name="image" value="/camera/color/image_raw"/>
+      <param name="_image_transport_" value="compressed"/> 
+    </node>
+
+</launch>
