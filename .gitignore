@@ -1,0 +1,12 @@
+
+my_datasets/
+
+my_outputs/
+
+.vscode/
+
+models/__pycache__/
+
+utils/__pycache__/
+
+airsim/__pycache__/
