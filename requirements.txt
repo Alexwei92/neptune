@@ -1,11 +1,9 @@
-torch == 1.7.1
-torchvision == 0.8.2
-numpy == 1.19.2
+torch == 1.5.0
+torchvision == 0.6.0
+numpy
 matplotlib
 Pillow
 sklearn
 scikit-image
-opencv-python
 msgpack-rpc-python
 pygame
-structure_tensor

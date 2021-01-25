@@ -47,9 +47,9 @@ def plot_with_heading(image, yaw_cmd):
 def imshow_np(img):
     if torch.is_tensor(img):
         img = img.numpy()
-    # input image is in [-1,1] range
+    # input image is normalized to [-1,1]
     img = ((img + 1.0) / 2.0 * 255.0).astype(np.uint8)
-    plt.imshow(img.transpose(2,1,0))
+    plt.imshow(cv2.cvtColor(img.transpose(2,1,0), cv2.COLOR_BGR2RGB))
     plt.axis('off')
 
 # plot PIL image
@@ -58,3 +58,37 @@ def imshow_PIL(img):
         img = img.permute((1,2,0))
     plt.imshow(img)
     plt.axis('off')
+
+# plot generated and original figure
+def plot_generate_figure(output, original, disp_N=6):
+    fig = plt.figure()
+    for i in range(disp_N):
+        plt.subplot(2, disp_N, i+1)
+        imshow_np(original[i,:])
+        plt.subplot(2, disp_N, i+1+disp_N)
+        imshow_np(output[i,:])
+
+# plot training losses history
+def plot_train_losses(train_history):
+    train_counter, train_losses, train_MSE_losses, train_KLD_losses = train_history
+
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+    ax1.plot(train_counter, train_KLD_losses, color='blue')
+    ax1.legend(['KLD Loss'], loc='upper right')
+    ax2.plot(train_counter, train_MSE_losses, color='blue')
+    ax2.legend(['MSE Loss'], loc='upper right')
+    ax2.set_ylabel('Loss')
+    ax3.plot(train_counter, train_losses, color='blue')
+    ax3.legend(['Total Loss'], loc='upper right')
+    plt.xlabel('# of training samples')
+    plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
+
+# plot training losses history
+def plot_train_losses2(train_history):
+    train_counter, train_losses = train_history
+
+    fig, ax = plt.subplots(1,1)
+    ax.plot(train_counter, train_losses, color='blue')
+    ax.legend(['Total Loss'], loc='upper right')
+    plt.xlabel('# of training samples')
+    plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
