@@ -7,3 +7,4 @@ sklearn
 scikit-image
 msgpack-rpc-python
 pygame
+PyYAML
