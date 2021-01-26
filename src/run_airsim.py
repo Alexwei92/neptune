@@ -111,7 +111,7 @@ client.confirmConnection()
 # Parameters
 loop_rate       = 10.0   # Hz
 max_yawRate     = 45.0  # deg/s
-forward_speed   = 1.5   # m/s
+forward_speed   = 4.5   # m/s
 height          = 5.0   # m
 
 # For visualization
@@ -124,7 +124,7 @@ height          = 5.0   # m
 joy        = Joystick(0) 
 yaw_axis   = 3
 speed_axis = 5
-mode_axis  = 6
+mode_axis  = 7
 
 # State Machine
 state_machine = StateMachine(
@@ -147,10 +147,10 @@ Main loop
 try:
     client.enableApiControl(True)
     client.armDisarm(True)
-    init_position = airsim.Vector3r(115, 181, -height)
-    init_orientation = airsim.to_quaternion(0, 0, np.pi*np.random.rand())
-    intial_pose = airsim.Pose(init_position, init_orientation)
-    client.simSetVehiclePose(intial_pose, True)
+    # init_position = airsim.Vector3r(115, 181, -height)
+    # init_orientation = airsim.to_quaternion(0, 0, np.pi*np.random.rand())
+    # intial_pose = airsim.Pose(init_position, init_orientation)
+    # client.simSetVehiclePose(intial_pose, True)
     print("Taking off, please wait...")
     client.takeoffAsync().join()
     state_machine.set_flight_mode('hover')
@@ -184,17 +184,17 @@ try:
             state_machine.set_flight_mode('hover')
 
         # Get the rgb image in FPV
-        camera_color = client.simGetImage("0", airsim.ImageType.Scene)
-        camera_depth = client.simGetImage("0", airsim.ImageType.DepthVis)
-        pngImg_color = cv2.imdecode(np.frombuffer(camera_color, np.int8), cv2.IMREAD_UNCHANGED)
-        pngImg_depth = cv2.imdecode(np.frombuffer(camera_depth, np.int8), cv2.IMREAD_UNCHANGED)
+        # camera_color = client.simGetImage("0", airsim.ImageType.Scene)
+        # camera_depth = client.simGetImage("0", airsim.ImageType.DepthVis)
+        # pngImg_color = cv2.imdecode(np.frombuffer(camera_color, np.int8), cv2.IMREAD_UNCHANGED)
+        # pngImg_depth = cv2.imdecode(np.frombuffer(camera_depth, np.int8), cv2.IMREAD_UNCHANGED)
         # grayImg_color = cv2.cvtColor(pngImg_color, cv2.COLOR_BGR2GRAY)
 
-        # Data logging
-        if state_machine.get_flight_mode() == 'mission':
-            data_logger.save_image('color', pngImg_color)
-            data_logger.save_image('depth', pngImg_depth)
-            data_logger.save_csv(state.timestamp, state.kinematics_estimated.position, state_machine.get_yawRad(), yaw_cmd)
+        # # Data logging
+        # if state_machine.get_flight_mode() == 'mission':
+        #     data_logger.save_image('color', pngImg_color)
+        #     data_logger.save_image('depth', pngImg_depth)
+        #     data_logger.save_csv(state.timestamp, state.kinematics_estimated.position, state_machine.get_yawRad(), yaw_cmd)
 
         # Update plots
         # pos_handle.update(state.kinematics_estimated.position.x_val, state.kinematics_estimated.position.y_val)

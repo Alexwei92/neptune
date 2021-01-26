@@ -99,27 +99,32 @@ class Display():
     '''
     For displaying on the window
     '''
-    def __init__(self):
-        self.is_alive = False
-        self.image = np.zeros((240, 320, 4))
-        self.yaw_cmd = 0.0
+    def __init__(self, image_size, loop_rate=15):
+        self.is_active = True
+        self.image = np.zeros((image_size[0], image_size[1], 4))
+        self.bar = 0.0
+        self.loop_rate = loop_rate
+
+    def update_bar(self, bar):
+        self.bar = bar
+
+    def update_image(self, image):
+        self.image = image
 
     def run(self):
-        while True:
+        while self.is_active:
             start_time = time.time()
-            plot_with_heading(self.image, self.yaw_cmd/2.0)
+            plot_with_heading(self.image, self.bar/2.0)
             elapsed_time = time.time() - start_time
 
-            key = cv2.waitKey(1) & 0xFF
-            if (key == 27 or key == ord('q')):
-                client.reset()
-                break
-
-            if (1./15 - elapsed_time) < 0.0:
-                print('Warning: the loop is too fast, consider to reduce the rate!')
+            if (1./self.loop_rate - elapsed_time) < 0.0:
+                print('[WARNING] The visualize loop rate is too high, consider to reduce the rate!')
             else:
-                time.sleep(1./15 - elapsed_time)  
-
+                time.sleep(1./self.loop_rate - elapsed_time)
+        self.clean()
+    
+    def clean(self):
+        cv2.destroyAllWindows()
 
 # Generate random pose
 def generate_random_pose(height):
@@ -127,7 +132,6 @@ def generate_random_pose(height):
     orientation = airsim.to_quaternion(0, 0, np.pi*np.random.rand())
     intial_pose = airsim.Pose(position, orientation)
     return intial_pose
-
 
 '''
 Initialize
@@ -140,14 +144,15 @@ client.confirmConnection()
 with open('config.yaml', 'r') as file:
     try:
         config = yaml.safe_load(file)
-    except yaml.YAMLError as exc:
-        print(exc)
+    except yaml.YAMLError as e:
+        print(e)
 
 # Simulation settings
 loop_rate = config['sim_params']['loop_rate']
 max_yawRate = config['sim_params']['max_yawRate']
 forward_speed = config['sim_params']['forward_speed']
 height = config['sim_params']['height']
+image_size = eval(config['sim_params']['image_size'])
 
 # Joystick/RC settings
 joy = Joystick(config['rc_params']['device_id']) 
@@ -156,13 +161,15 @@ speed_axis = config['rc_params']['speed_axis']
 mode_axis = config['rc_params']['mode_axis']
 
 # Visualize settings
-disp_handle = Display()
+disp_handle = Display(image_size=image_size, loop_rate=loop_rate)
 if config['visualize_params']['plot_2Dpos']:
     fig, ax = plt.subplots()
     pos_handle = DynamicPlot(fig, ax, max_width=120*loop_rate)
 
 if config['visualize_params']['plot_heading']:
     cv2.namedWindow("mirror", cv2.WINDOW_NORMAL)
+    # cv2.namedWindow("mirror", cv2.WND_PROP_FULLSCREEN)
+    # cv2.setWindowProperty("mirror",cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_FULLSCREEN)
 
 
 # State Machine
@@ -198,9 +205,9 @@ try:
     controller.is_active = True
     print("Start the loop")
 
-    aa = threading.Thread(target=disp_handle.run)
-    aa.start()
-    aa.is_alive = True
+    # multithreading
+    disp_thread = threading.Thread(target=disp_handle.run)
+    disp_thread.start()
 
     while True:
         now = time.time() # loop start time
@@ -211,7 +218,7 @@ try:
             client.reset()
             client.enableApiControl(True)
             client.simSetVehiclePose(generate_random_pose(height), True)
-            data_logger.trial += 1
+            # data_logger.trial += 1
 
         # Get Multirotor states
         state = client.getMultirotorState()
@@ -230,15 +237,13 @@ try:
         # Get the rgb image in FPV
         camera_color = client.simGetImages([airsim.ImageRequest('0', airsim.ImageType.Scene, False, False)])[0]
         camera_color = np.fromstring(camera_color.image_data_uint8, dtype=np.uint8)
-        camera_color = camera_color.reshape(240, 320, 3)
+        camera_color = camera_color.reshape(image_size[0], image_size[1], 3)
 
-        camera_depth = client.simGetImages([airsim.ImageRequest('0', airsim.ImageType.DepthVis)])
-        print(camera_depth.image.type)
-        # camera_depth = np.fromstring(camera_depth.image_data_uint8, dtype=np.uint8)
-        # print(camera_depth.shape)
-        # camera_depth = camera_color.reshape(240, 320, 1)
-
-
+        camera_depth = client.simGetImages([airsim.ImageRequest('0', airsim.ImageType.DepthVis, False, False)])[0]
+        # print(camera_depth.image_type)
+        camera_depth = np.fromstring(camera_depth.image_data_uint8, dtype=np.uint8)
+        print(camera_depth.shape)
+        camera_color = camera_color.reshape(image_size[0], image_size[1], 3)
 
         # camera_depth = client.simGetImage("0", airsim.ImageType.DepthVis)
         # pngImg_depth = cv2.imdecode(np.frombuffer(camera_depth, np.int8), cv2.IMREAD_UNCHANGED)
@@ -254,34 +259,39 @@ try:
 
         # Update plots
         # pos_handle.update(state.kinematics_estimated.position.x_val, state.kinematics_estimated.position.y_val)
-        disp_handle.yaw_cmd = yaw_cmd
-        disp_handle.image = camera_color
-
+        disp_handle.update_bar(yaw_cmd)
+        disp_handle.update_image(camera_color)
 
         # Send command to the vehicle
         controller.set_current_yaw(state_machine.get_yawRad())
         controller.step(yaw_cmd, state_machine.get_flight_mode())
 
-        # # for CV plotting
-        # key = cv2.waitKey(1) & 0xFF
-        # if (key == 27 or key == ord('q')):
-        #     client.reset()
-        #     break
+        # for CV plotting
+        key = cv2.waitKey(1) & 0xFF
+        if (key == 27 or key == ord('q')):
+            disp_handle.is_active = False
+            break
 
         # Ensure that the loop is running at a fixed rate
         elapsed_time = time.time() - now
         print(1./elapsed_time)
         if (1./loop_rate - elapsed_time) < 0.0:
-            # print('Warning: the loop is too fast, consider to reduce the rate!')
-            a = 1
+            print('[WARNING] The main loop rate is too high, consider to reduce the rate!')
         else:
             time.sleep(1./loop_rate - elapsed_time)
 
-except:
-    aa.join()
-    cv2.destroyAllWindows()
+except Exception as e:
+    print(e)
+
+finally:
+    print('===============================')
+    print('Clean up the code...')
+
+    disp_handle.is_active = False
+    disp_handle.clean()
+    joy.clean()
     # data_logger.clean()
     # client.armDisarm(False)
-    client.reset()
     client.enableApiControl(False)
-    joy.clean()
+    client.reset()
+    print('Exit the program successfully!')

@@ -4,7 +4,7 @@ sim_params:
   max_yawRate:      45.0    # deg/s
   forward_speed:    1.5     # m/s
   height:           5.0     # m
-  img_size:      (240, 320) # Width x Height 
+  image_size:       (480, 640) # Width x Height 
   controller_type:  'expert'       #
   dagger_type:      'vanillar'     #
   is_train: False #
@@ -14,7 +14,7 @@ rc_params:
   device_id:  0 
   yaw_axis:   3
   speed_axis: 5
-  mode_axis:  6
+  mode_axis:  5
 
 # Visualize parameters
 visualize_params:

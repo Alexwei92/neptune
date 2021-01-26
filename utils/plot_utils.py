@@ -32,13 +32,13 @@ def plot_with_heading(image, yaw_cmd):
     height = image.shape[0]
     width = image.shape[1]
 
-    w1 = 0.35
-    w2 = 0.65
-    h1 = 0.85
-    h2 = 0.9
+    w1 = 0.35 # [0,1]
+    w2 = 0.65 # [0,1]
+    h1 = 0.85 # [0,1]
+    h2 = 0.9  # [0,1]
     cv2.rectangle(image, (int(w1*width), int(h1*height)), (int(w2*width), int(h2*height)), (0,0,0), 2)
 
-    bar_width = 10
+    bar_width = 10 # pixel
     center_pos = ((w2-w1)*width - bar_width) * yaw_cmd + 0.5*width
     cv2.rectangle(image, (int(center_pos-bar_width/2),int(0.85*height)), (int(center_pos+bar_width/2),int(0.9*height)), (0,0,255), -1)
     cv2.imshow("mirror", image) 
