@@ -1,0 +1,4 @@
+TODO:
+
+1) Put config. parameters in a .yaml file (done)
+2) Move the plotting to a multi-threading function. (done)
