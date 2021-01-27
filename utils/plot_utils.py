@@ -93,7 +93,8 @@ def plot_train_losses(train_history):
         ax3.legend(['Total Loss'], loc='upper right')
         plt.xlabel('# of training samples')
         plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
-    
+        plt.title('VAE training results')
+        
     elif len(train_history) == 2:
         # latent result
         train_counter, train_losses = train_history
@@ -105,6 +106,6 @@ def plot_train_losses(train_history):
         ax.legend(['Total Loss'], loc='upper right')
         plt.xlabel('# of training samples')
         plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
-
+        plt.title('Latent Control training result')
     else:
         pass

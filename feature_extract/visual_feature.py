@@ -3,11 +3,6 @@ import cv2
 import os
 import glob
 
-# Radon
-from skimage.transform import radon
-from skimage.util import img_as_float
-import heapq
-
 class FeatureExtract():
     def __init__(self, config, image_size):
         self.config = config
@@ -20,7 +15,16 @@ class FeatureExtract():
         self.H_points, self.H_size = self.sliding_window(image_height, split_size[0], self.config['SLIDE_OVERLAP'], self.config['SLIDE_FLAG']) 
         self.W_points, self.W_size = self.sliding_window(image_width, split_size[1], self.config['SLIDE_OVERLAP'], self.config['SLIDE_FLAG'])
 
-        # Radon Init
+        # GPU init
+        self.image_gpu = cv2.cuda_GpuMat()
+
+        # Hough Init
+        self.image_canny = cv2.cuda_GpuMat()
+
+        self.cannyFilter = cv2.cuda_CannyEdgeDetector(low_thresh=5, high_thresh=20, apperture_size=3)
+        self.houghFilter = cv2.cuda_HoughLinesDetector(rho=1, theta=(np.pi/16), threshold=3, doSort=True, maxLines=32)
+
+        self.houghResult_gpu = np.zeros(config['HOUGH_ANGLES'] * 2 * len(self.H_points) * len(self.W_points))
 
         # Law Mask Init
         self.create_lawMask(config['LAW_MASK'])
@@ -32,11 +36,11 @@ class FeatureExtract():
                                                     numIters=3, polyN=5, polySigma=1.1, flags=0) 
 
         # Color feature Init
-        self.radon_size = config['RADON_ANGLES'] * 2
+        self.hough_size = config['HOUGH_ANGLES'] * 2
         self.tensor_size = config['TENSOR_HISTBIN']
         self.law_size = len(config['LAW_MASK']) + 2
         self.flow_size = 5
-        size_each_window = self.radon_size + self.tensor_size + self.law_size + self.flow_size
+        size_each_window = self.hough_size + self.tensor_size + self.law_size + self.flow_size
 
         self.feature_color_result = np.zeros(size_each_window * len(self.H_points) * len(self.W_points))
     
@@ -79,41 +83,21 @@ class FeatureExtract():
         return points, window_size
 
     '''
-    @ Radon Feature
+    @ Hough Feature
     '''
-    def radon_feature(self, image):
+    def hough_feature(self, image):
         # Convert to grayscale if necessary
         if len(image.shape) > 2:
             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        image = img_as_float(image)
 
-        # Calculates the radon transform of a frame
-        theta = np.linspace(0., 180., self.config['RADON_ANGLES'], endpoint=False)
-        # Circle could = true or false
-        sinogram = radon(image, theta=theta, circle = False, preserve_range=True)
+        # self.image_gpu.upload(image)
+        # self.image_canny = self.cannyFilter.detect(self.image_gpu)
+        # self.houghResult_gpu = self.houghFilter.detect(self.image_canny)
 
-        # Reducing matrix by a factor of 5 and averaging over values in between.
-        sino_height, _ = sinogram.shape
-        sinogram = (sinogram[(sino_height%5)::5]+sinogram[(sino_height%5)+1::5]+sinogram[(sino_height%5)+2::5]+sinogram[(sino_height%5)+3::5]+sinogram[(sino_height%5)+4::5])/5
-
-        # Extracting weights by getting 2 largest values for each angle
-        radon_weights = np.zeros((self.config['RADON_ANGLES'], 2))
-        # Maybe could be done with enumerating, but its weird with ndarrays
-        i = 0
-        for row in sinogram.T:
-            radon_weights[i] = heapq.nlargest(2, row)
-            i += 1
-
-        # Scale the weights
-        # !!! xmin and xmax may need to be changed depending on values of input image
-        xmax = 512
-        xmin = 0
-        radon_weights = (radon_weights - xmin)/(xmax-xmin)
-
-        # Fixing shape
-        radon_weights = np.reshape(radon_weights, radon_weights.size)
+        # houghResult = self.houghResult_gpu.download()
+        houghResult = np.zeros(30)
         
-        return radon_weights
+        return houghResult
 
     '''
     @ Structure Tensor
@@ -162,7 +146,8 @@ class FeatureExtract():
         hist_result = np.zeros(histbin)
         for k in np.linspace(0.0, 180.0, histbin, endpoint=False):
             tmp1 = (orientation_Angle >= k) & (orientation_Angle < k + 180./histbin)
-            hist_result[index] = np.mean(coherency[tmp1])
+            if tmp1.any():
+                hist_result[index] = np.mean(coherency[tmp1])
             index += 1
 
         return hist_result
@@ -290,9 +275,9 @@ class FeatureExtract():
             for j in self.W_points:
                 cropped_image = image[i:i+self.H_size, j:j+self.W_size]
 
-                # Radon
-                self.feature_color_result[k:k+self.radon_size] = self.radon_feature(cropped_image)
-                k += self.radon_size
+                # Hough
+                self.feature_color_result[k:k+self.hough_size] = self.hough_feature(cropped_image)
+                k += self.hough_size
                 # Structure Tensor
                 self.feature_color_result[k:k+self.tensor_size] = self.tensor_feature(cropped_image)
                 k += self.tensor_size
@@ -324,5 +309,8 @@ class FeatureExtract():
         self.update_depth(image_depth)
         return np.concatenate((self.feature_color_result, self.feature_depth_result))
 
+
     def get_size(self):
         return len(self.feature_color_result) + len(self.feature_depth_result)
+
+

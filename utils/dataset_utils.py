@@ -78,7 +78,7 @@ class LatentDataset(Dataset):
     '''
     Latent Variable Dataset Class in Numpy
     '''
-    def __init__(self, folder_path, resize, n_chan=3):
+    def __init__(self, folder_path, cmd_index, resize, n_chan=3):
         self.folder_path = folder_path
         file_list = glob.glob(os.path.join(folder_path, self.color_folder, '*.png'))
         file_list.sort()
@@ -97,9 +97,7 @@ class LatentDataset(Dataset):
         # Read telemetry file
         data = np.genfromtxt(os.path.join(self.folder_path, 'airsim.csv'),
                                 delimiter=',', skip_header=True).astype(np.float32)
-
-        # TODO: put column # in configuration file
-        self.data = data[:,6]
+        self.data = data[:, cmd_index]
 
     def __len__(self):
         return len(self.data)

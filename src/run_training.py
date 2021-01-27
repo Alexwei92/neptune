@@ -55,13 +55,16 @@ if __name__ == '__main__':
 
         plt.show()
 
+    # cmd location in telemetry data
+    cmd_index = config['train_params']['cmd_index']
+
     # 1) Linear Regression
     if train_reg:
         print('======= Linear Regression Controller =========')
         weight_filename = config['train_params']['reg_weight_filename']
         
         # Create the agent
-        reg_agent = RegTrain(dataset_dir, preload=True)
+        reg_agent = RegTrain(dataset_dir, cmd_index=cmd_index, preload=True)
 
         # Train
         reg_agent.train()
@@ -119,7 +122,7 @@ if __name__ == '__main__':
 
         # DataLoader
         print('Loading latent datasets...')
-        data = LatentDataset(dataset_dir, resize=img_resize)
+        data = LatentDataset(dataset_dir, cmd_index=cmd_index, resize=img_resize)
         data_loader = DataLoader(data, batch_size=batch_size, shuffle=True, num_workers=6)
         print('Load latent datasets successfully.')
 

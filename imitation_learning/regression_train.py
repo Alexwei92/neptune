@@ -27,7 +27,7 @@ class RegTrain():
     '''
     Linear Regression Training Agent
     '''
-    def __init__(self, folder_path, preload=False):
+    def __init__(self, folder_path, cmd_index, preload=False):
         self.folder_path = folder_path
 
         self.file_list_color = glob.glob(os.path.join(self.folder_path, 'color', '*.png'))
@@ -40,15 +40,15 @@ class RegTrain():
         # Visual feature
         tmp_img = cv2.imread(self.file_list_color[0], cv2.IMREAD_UNCHANGED)
         self.feature_agent = FeatureExtract(feature_config, tmp_img.shape[:2])
-        self.get_sample(preload)
+        self.get_sample(cmd_index, preload)
 
-    def get_sample(self, preload):
+    def get_sample(self, cmd_index, preload):
         if preload:
             default_filename = os.path.join(self.folder_path, 'sample_preload.csv')
             if not os.path.isfile(default_filename):
                 print("***No such file!", default_filename)
                 # raise IOError("***No such file!", os.path.join(self.folder_path, 'sample_preload.csv'))
-                self.get_sample(False)
+                self.get_sample(cmd_index, False)
             else:
                 self.X = np.genfromtxt(default_filename, delimiter=',', dtype=np.float32)
             
@@ -64,14 +64,18 @@ class RegTrain():
             
             np.savetxt(os.path.join(self.folder_path, 'sample_preload.csv'), self.X, delimiter=',')
             
-        self.read_telemetry(index)
+        self.read_telemetry(cmd_index)
         print('Load linear regression samples successfully.')
 
     def read_telemetry(self, index):
         # read telemetry csv
-        telemetry_data = np.genfromtxt(os.path.join(self.folder_path, 'airsim.csv'), delimiter=',', skip_header=True)
-        # TODO: put the column# in the cofig. file
+        telemetry_data = np.genfromtxt(os.path.join(self.folder_path, 'airsim.csv'), 
+                    delimiter=',', skip_header=True, dtype=np.float32)
+        
         self.y = telemetry_data[:, index] # yaw_cmd
+        # yaw = np.reshape(telemetry_data[:, index-2], (-1,1)) # yaw
+        yawRate = np.reshape(telemetry_data[:, index-1], (-1,1)) # yaw rate
+        self.X = np.concatenate((self.X, yawRate), axis=1)
 
     def calculate_weight(self):
         weight, intercept, r2 = calculate_regression(self.X, self.y)
