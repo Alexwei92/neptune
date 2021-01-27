@@ -17,8 +17,14 @@ class BaseCtrl():
     def set_current_yaw(self, yaw):
         self.current_yaw = yaw
 
-    def step(self, *input: any):
-        raise NotImplementedError
+    def step(self, yaw_cmd, flight_mode):
+        if flight_mode == 'hover':
+            self.send_command(yaw_cmd, is_hover=True)
+        elif flight_mode == 'mission':
+            self.send_command(yaw_cmd, is_hover=False)
+        else:
+            print('Unknown flight_mode: ', flight_mode)
+            raise Exception
 
     def send_command(self, yaw_cmd, is_hover=False):
         if is_hover:

@@ -12,7 +12,6 @@ import airsim
 from utils import *
 from controller import *
 
-
 if __name__ == '__main__':
     # Connect to the AirSim simulator
     client = airsim.MultirotorClient()
@@ -28,10 +27,11 @@ if __name__ == '__main__':
 
     # Simulation settings
     loop_rate = config['sim_params']['loop_rate']
-    controller_type = config['sim_params']['controller_type']
-    train_mode = config['sim_params']['train_mode']
     output_path = config['sim_params']['output_path']
     save_data = config['sim_params']['save_data']
+    agent_type = config['sim_params']['agent_type']
+    dagger_type = config['sim_params']['dagger_type']
+    train_mode = config['sim_params']['train_mode']
     initial_pose = eval(config['sim_params']['initial_pose'])
 
     # Control settings
@@ -39,40 +39,68 @@ if __name__ == '__main__':
     forward_speed = config['ctrl_params']['forward_speed']
     height = config['ctrl_params']['height']
     image_size = eval(config['ctrl_params']['image_size'])
+    model_path = config['ctrl_params']['model_path']
 
     # Joystick/RC settings
     joy = Joystick(config['rc_params']['device_id']) 
     yaw_axis = config['rc_params']['yaw_axis']
+    type_axis = config['rc_params']['type_axis']
     mode_axis = config['rc_params']['mode_axis']
 
     # Visualize settings
     plot_heading = config['visualize_params']['plot_heading']
     plot_2Dpos = config['visualize_params']['plot_2Dpos']
 
+
     # Visualize Init
     disp_handle = Display(
         image_size=image_size, 
         loop_rate=loop_rate,
         plot_heading=plot_heading)
-
+    
     if plot_2Dpos:
         fig, ax = plt.subplots()
         pos_handle = DynamicPlot(fig, ax, max_width=120*loop_rate)
 
-    # State Machine Init
-    state_machine = StateMachine(
-        controller_type=controller_type,
-        train_mode=train_mode,
-    )
-
     # Controller Init
-    controller = ExpertCtrl(client=client,
+    controller = Controller(client=client,
                             forward_speed=forward_speed, 
                             height=height, 
                             max_yawRate=max_yawRate)
 
+    if agent_type == 'reg':
+        # Linear regression controller
+        reg_weight_path = os.path.join(setup_path.parent_dir, model_path, 'reg_weight.csv')
+        controller_agent = RegCtrl(
+                            image_size=image_size,
+                            weight_file_path=reg_weight_path)
+
+    elif agent_type == 'latent':
+        # latent controller
+        z_dim = config['train_params']['z_dim']
+        img_resize = eval(config['train_params']['img_resize'])
+        vae_model_path = os.path.join(setup_path.parent_dir, model_path, 'vae_model.pt')
+        latent_model_path = os.path.join(setup_path.parent_dir, model_path, 'latent_model.pt')
+        controller_agent = LatentCtrl(
+                            vae_model_path=vae_model_path,
+                            latent_model_path=latent_model_path,
+                            z_dim=z_dim,
+                            image_resize=img_resize)
+    else:
+        dagger_type = 'none'
+        print('No agent controller currently available.')
+
+
+    # State Machine Init
+    state_machine = StateMachine(
+        agent_type=agent_type,
+        dagger_type=dagger_type,
+        train_mode=train_mode,
+    )
+
     # Data logger Init
-    data_logger = Logger(root_dir=os.path.join(setup_path.parent_dir, output_path), save_data=save_data)
+    data_logger = Logger(root_dir=os.path.join(setup_path.parent_dir, output_path),
+                        save_data=save_data)
 
     '''
     Main Code
@@ -95,15 +123,12 @@ if __name__ == '__main__':
         # Take-off
         print("Taking off, please wait...")
         client.takeoffAsync().join()
-        state_machine.set_flight_mode('hover')
-        controller.is_active = True
         print("Start the loop")
 
-        # Multi-threading for display
+        # Multithreading process for display
         disp_thread = threading.Thread(target=disp_handle.run)
         disp_thread.start()
 
-        # Main loop
         while True:
             now = time.time() # loop start time
 
@@ -123,11 +148,10 @@ if __name__ == '__main__':
             yaw_cmd = joy.get_input(yaw_axis)
 
             # Update flight mode from RC/joystick
-            mode_cmd = joy.get_input(mode_axis)
-            if mode_cmd < -0.5:
-                state_machine.set_flight_mode('mission')
-            else:
-                state_machine.set_flight_mode('hover')
+            state_machine.set_flight_mode(joy.get_input(mode_axis))
+
+            # Update controller type from RC/joystick
+            state_machine.set_controller_type(joy.get_input(type_axis))
 
             # Get the Images in FPV
             camera_response = client.simGetImages([
@@ -153,20 +177,34 @@ if __name__ == '__main__':
                 data_logger.save_image('depth', image_depth)
                 data_logger.save_csv(drone_state.timestamp, drone_state.kinematics_estimated, yaw_cmd)
 
+            # Update controller commands
+            controller.set_current_yaw(get_yaw_from_orientation(drone_state.kinematics_estimated.orientation))
+            if state_machine.is_expert or state_machine.flight_mode == 'hover':
+                controller.step(yaw_cmd, state_machine.get_flight_mode())
+            
+            else:
+                if state_machine.agent_type == 'reg':
+                    yawRate = drone_state.kinematics_estimated.angular_velocity.z_val
+                    yaw_cmd = controller_agent.predict(image_color, image_depth, yawRate)
+                    controller.step(yaw_cmd, 'mission')
+
+                elif state_machine.agent_type == 'latent':
+                    yaw_cmd = controller_agent.predict(image_color)
+                    controller.step(yaw_cmd, 'mission')
+                
+                else:
+                    pass
+
             # Update plots
-            disp_handle.update(image_color, yaw_cmd)
+            disp_handle.update(image_color, yaw_cmd, state_machine.is_expert)
 
             if plot_2Dpos:
                 pos_handle.update(drone_state.kinematics_estimated.position.x_val, drone_state.kinematics_estimated.position.y_val)
 
-            # Execute Controller
-            controller.set_current_yaw(get_yaw_from_orientation(drone_state.kinematics_estimated.orientation))
-            controller.step(yaw_cmd, state_machine.get_flight_mode())
-
             # for CV plotting
             key = cv2.waitKey(1) & 0xFF
             if (key == 27 or key == ord('q')):
-                disp_handle.is_active = False
+                client.reset()
                 break
 
             # Ensure that the loop is running at a fixed rate

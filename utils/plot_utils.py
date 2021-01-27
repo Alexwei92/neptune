@@ -27,7 +27,7 @@ class DynamicPlot():
 
 # Plot image with heading
 # yaw_cmd is normalized to [-0.5, 0.5]
-def plot_with_heading(win_name, image, yaw_cmd):
+def plot_with_heading(win_name, image, yaw_cmd, is_expert):
 
     height = image.shape[0]
     width = image.shape[1]
@@ -40,7 +40,11 @@ def plot_with_heading(win_name, image, yaw_cmd):
 
     bar_width = 10 # pixel
     center_pos = ((w2-w1)*width - bar_width) * yaw_cmd + 0.5*width
-    cv2.rectangle(image, (int(center_pos-bar_width/2),int(0.85*height)), (int(center_pos+bar_width/2),int(0.9*height)), (0,0,255), -1)
+    if is_expert:
+        color = (0,0,255)
+    else:
+        color = (255,0,0)
+    cv2.rectangle(image, (int(center_pos-bar_width/2),int(0.85*height)), (int(center_pos+bar_width/2),int(0.9*height)), color, -1)
     cv2.imshow(win_name, image) 
 
 # Plot image without heading

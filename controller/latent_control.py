@@ -3,21 +3,20 @@ import os
 import cv2
 import numpy as np
 
-from controller import BaseCtrl
 from models import *
 from utils import *
 
-class LatentCtrl(BaseCtrl):
+class LatentCtrl():
     '''
     Latent Controller
     '''
     def __init__(self, **kwargs): 
-        super().__init__(**kwargs)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         z_dim = kwargs.get('z_dim')
         self.load_VAE_model(kwargs.get('vae_model_path'), z_dim)
         self.load_latent_model(kwargs.get('latent_model_path'), z_dim)
         self.resize = kwargs.get('image_resize')
+        print('The latent controller is initialized.')
 
     def load_VAE_model(self, file_path, z_dim):
         model = torch.load(file_path)
@@ -51,12 +50,3 @@ class LatentCtrl(BaseCtrl):
         if y < -1.0:
             y = -1.0
         return y
-        
-    def step(self, yaw_cmd, flight_mode):
-        if flight_mode == 'hover':
-            self.send_command(0.0, is_hover=True)
-        elif flight_mode == 'mission':
-            self.send_command(yaw_cmd, is_hover=False)
-        else:
-            print('Unknown flight_mode: ', flight_mode)
-            raise Exception

@@ -25,10 +25,12 @@ class StateMachine():
     A high-level state machine
     '''
     # Init
-    def __init__(self, controller_type='expert', train_mode='train'):
+    def __init__(self, agent_type='none', dagger_type='none', train_mode='train'):
         self.flight_mode = 'idle' # {idle, hover, mission}
-        self.controller_type = controller_type 
+        self.agent_type = agent_type 
+        self.dagger_type = dagger_type
         self.train_mode = train_mode
+        self.is_expert = True
         self.has_collided = False
 
     # Collision
@@ -39,22 +41,29 @@ class StateMachine():
             self.flight_mode = 'hover' # Hover by default
             print('Please reset the stick to its idle position first!')
 
-
     # Flight Mode
-    def set_flight_mode(self, flight_mode):
-        if self.has_collided and flight_mode=='mission':
+    def set_flight_mode(self, x):
+        if x < -0.5:
+            new_mode = 'mission'
+        else:
+            new_mode = 'hover'
+
+        if self.has_collided and new_mode=='mission':
             # force to start from hover when reset
             pass
         else:
-            self.flight_mode = flight_mode
+            self.flight_mode = new_mode
             self.has_collided = False
 
     def get_flight_mode(self):
         return self.flight_mode
 
-    # Controller
-    def get_controller_type(self):
-        return self.controller_type
+    # Controller Type
+    def set_controller_type(self, x):
+        if x < -0.5 and self.agent_type != 'none':
+            self.is_expert = False
+        else:
+            self.is_expert = True
 
 class Logger():
     '''
@@ -108,6 +117,7 @@ class Display():
         self.loop_rate = loop_rate
         self.plot_heading = plot_heading
         self.win_name = 'disp'
+        self.is_expert = True
         cv2.namedWindow(self.win_name, cv2.WINDOW_NORMAL)
 
     def update_bar(self, bar):
@@ -116,15 +126,16 @@ class Display():
     def update_image(self, image):
         self.image = image
 
-    def update(self, image, bar):
+    def update(self, image, bar, is_expert):
         self.update_image(image)
         self.update_bar(bar)
+        self.is_expert = is_expert
 
     def run(self):
         while self.is_active:
             start_time = time.time()
             if self.plot_heading:
-                plot_with_heading(self.win_name, self.image, self.bar/2.0)
+                plot_with_heading(self.win_name, self.image, self.bar/2.0, self.is_expert)
             else:
                 plot_without_heading(self.win_name, self.image)
 
@@ -138,3 +149,37 @@ class Display():
     
     def clean(self):
         cv2.destroyAllWindows()
+
+
+class Controller():
+    '''
+    A high level controller class
+    '''
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.client = kwargs.get('client')
+        self.forward_speed = kwargs.get('forward_speed')
+        self.height = kwargs.get('height')
+        self.max_yawRate = kwargs.get('max_yawRate')
+        self.current_yaw = 0.0 # in radian
+
+    def set_current_yaw(self, yaw):
+        self.current_yaw = yaw
+
+    def step(self, yaw_cmd, flight_mode):
+        if flight_mode == 'hover':
+            self.client.rotateByYawRateAsync(yaw_rate=yaw_cmd * self.max_yawRate,
+                        duration=1)
+
+        elif flight_mode == 'mission':
+            # forward flight
+            vx = self.forward_speed * np.cos(self.current_yaw)
+            vy = self.forward_speed * np.sin(self.current_yaw)
+            self.client.moveByVelocityZAsync(vx=vx, vy=vy, 
+                                            z=-self.height,
+                                            duration=1,
+                                            yaw_mode=airsim.YawMode(True, yaw_cmd * self.max_yawRate))
+
+        else:
+            print('Unknown flight_mode: ', flight_mode)
+            raise Exception
