@@ -23,7 +23,7 @@ def calculate_regression(X, y, disp_summary=False):
 
     return reg.coef_, reg.intercept_, R_square
 
-class LGTrain():
+class RegTrain():
     '''
     Linear Regression Training Agent
     '''
@@ -34,6 +34,8 @@ class LGTrain():
         self.file_list_depth = glob.glob(os.path.join(self.folder_path, 'depth', '*.png'))
         self.file_list_color.sort()
         self.file_list_depth.sort()
+        if len(self.file_list_color) != len(self.file_list_depth):
+            raise Exception("The size of color and depth images does not match!")
 
         # Visual feature
         tmp_img = cv2.imread(self.file_list_color[0], cv2.IMREAD_UNCHANGED)
@@ -41,7 +43,16 @@ class LGTrain():
         self.get_sample(preload)
 
     def get_sample(self, preload):
-        if not preload:
+        if preload:
+            default_filename = os.path.join(self.folder_path, 'sample_preload.csv')
+            if not os.path.isfile(default_filename):
+                print("***No such file!", default_filename)
+                # raise IOError("***No such file!", os.path.join(self.folder_path, 'sample_preload.csv'))
+                self.get_sample(False)
+            else:
+                self.X = np.genfromtxt(default_filename, delimiter=',', dtype=np.float32)
+            
+        else:
             self.X = np.zeros((len(self.file_list_color), self.feature_agent.get_size()))
             i = 0
             for color_file, depth_file in zip(self.file_list_color, self.file_list_depth):
@@ -52,23 +63,15 @@ class LGTrain():
                 i += 1
             
             np.savetxt(os.path.join(self.folder_path, 'sample_preload.csv'), self.X, delimiter=',')
-
-        else:
-            if not os.path.isfile(os.path.join(self.folder_path, 'sample_preload.csv')):
-                raise IOError("***No such file!", os.path.join(self.folder_path, 'sample_preload.csv'))
             
-            self.X = np.genfromtxt(os.path.join(self.folder_path, 'sample_preload.csv'),
-                delimiter=',', dtype=np.float32)
-            
-        self.read_telemetry()
-        print('===> Load linear regression samples successfully')
+        self.read_telemetry(index)
+        print('Load linear regression samples successfully.')
 
-    def read_telemetry(self):
+    def read_telemetry(self, index):
         # read telemetry csv
-        telemetry_data = np.genfromtxt(os.path.join(self.folder_path, 'airsim.csv'),
-                                delimiter=',', skip_header=True)
-
-        self.y = telemetry_data[:, 5] # yaw_cmd
+        telemetry_data = np.genfromtxt(os.path.join(self.folder_path, 'airsim.csv'), delimiter=',', skip_header=True)
+        # TODO: put the column# in the cofig. file
+        self.y = telemetry_data[:, index] # yaw_cmd
 
     def calculate_weight(self):
         weight, intercept, r2 = calculate_regression(self.X, self.y)
@@ -77,8 +80,8 @@ class LGTrain():
 
     def save_weight(self, file_path):
         np.savetxt(file_path, self.weight, delimiter=',')
-        print('===> Save weight to: ', file_path)
+        print('Save weight to: ', file_path)
 
     def train(self):
         self.calculate_weight()
-        print('Number of Weight: ', len(self.weight))
+        print('Number of weight values: ', len(self.weight))

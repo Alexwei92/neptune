@@ -1,48 +1,56 @@
 # Simulation parameters
 sim_params:
-  controller_type:  'expert' # {'expert', 'ling', 'vae'}
-  dagger_type:      'vanillar' # {'vanilla-dagger', 'hg-dagger'}
-  loop_rate:        10.0 # Hz
-  output_path:      'my_datasets/test'
-  is_save_data:      False # {True, False}
-  train_mode:       'test' # {'train', 'test'}
+  controller_type:            'expert' # {'expert', 'ling', 'vae'}
+  dagger_type:                'vanillar' # {'vanilla-dagger', 'hg-dagger'}
+  loop_rate:                  10.0 # Hz
+  output_path:                'my_datasets/test'
+  initial_pose:               (0,0,0,0) # {pos_x, pos_y, pos_z, yaw} e.g. (115,181,0,0)
+  save_data:                  False # {True, False}
+  train_mode:                 'test' # {'train', 'test'}
 
 # Controller parameters
 ctrl_params:
-  max_yawRate:      45.0 # deg/s
-  forward_speed:    2.0  # m/s
-  height:           5.0  # m
-  image_size:       (480, 640) # Width x Height 
+  max_yawRate:                45.0 # deg/s
+  forward_speed:              2.0  # m/s
+  height:                     5.0  # m
+  image_size:                 (480, 640) # Width x Height 
 
 # RC/Joystick parameters
 rc_params:
-  device_id:  0 
-  yaw_axis:   3
-  mode_axis:  6
+  device_id:                  0 
+  yaw_axis:                   3
+  mode_axis:                  6
 
 # Visualize parameters
 visualize_params:
-  is_plot_2Dpos: False
-  is_plot_heading: True 
+  plot_2Dpos:                 False
+  plot_heading:               True 
 
 # Training parameters
 train_params:
-  n_epochs: 200
-  batch_size: 32
-  resize: (64,64)
-
-vae_params:
-  latent_dim: 10
-  checkpoint_path: 'my_outputs'
-
-
-# nn_params:
+  dataset_dir:                'my_datasets/nh'
+  output_dir:                 'my_outputs/nh/iter0'
   
+  cmd_index:                  6 # column index of yaw command in .csv file
+  
+  result_only:                True # this will disable all trainings and only show results
+  train_reg:                  False
+  train_vae:                  False
+  train_latent:               False
 
-# ling_params:
+  z_dim:                      10 # latent dimension
+  img_resize:                 (64, 64) # resize image before VAE, right now only support (64, 64)
 
+  reg_weight_filename:        'reg_weight.csv'
 
+  vae_n_epochs:               200
+  vae_batch_size:             32
+  vae_checkpoint_filename:    'vae_checkpoint.pt'
+  vae_checkpoint_preload:     True
+  vae_model_filename:         'vae_model.pt'
 
-
-
-
+  latent_n_epochs:            200
+  latent_batch_size:          32
+  latent_checkpoint_filename: 'latent_checkpoint.pt'
+  latent_checkpoint_preload:  True
+  latent_model_filename:      'latent_model.pt'

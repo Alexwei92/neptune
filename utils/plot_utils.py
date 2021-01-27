@@ -64,35 +64,47 @@ def imshow_PIL(img):
     plt.axis('off')
 
 # plot generated and original figure
-def plot_generate_figure(output, original, disp_N=6):
+def plot_generate_figure(output, original, N):
     fig = plt.figure()
-    for i in range(disp_N):
-        plt.subplot(2, disp_N, i+1)
+    for i in range(N):
+        plt.subplot(2, N, i+1)
         imshow_np(original[i,:])
-        plt.subplot(2, disp_N, i+1+disp_N)
+        plt.subplot(2, N, i+1+N)
         imshow_np(output[i,:])
 
 # plot training losses history
 def plot_train_losses(train_history):
-    train_counter, train_losses, train_MSE_losses, train_KLD_losses = train_history
+    skip_N = 5
+    if len(train_history) == 4:
+        # VAE result
+        train_counter, train_losses, train_MSE_losses, train_KLD_losses = train_history
+        train_counter = train_counter[skip_N:]
+        train_losses = train_losses[skip_N:]
+        train_MSE_losses = train_MSE_losses[skip_N:]
+        train_KLD_losses = train_KLD_losses[skip_N:]
 
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
-    ax1.plot(train_counter, train_KLD_losses, color='blue')
-    ax1.legend(['KLD Loss'], loc='upper right')
-    ax2.plot(train_counter, train_MSE_losses, color='blue')
-    ax2.legend(['MSE Loss'], loc='upper right')
-    ax2.set_ylabel('Loss')
-    ax3.plot(train_counter, train_losses, color='blue')
-    ax3.legend(['Total Loss'], loc='upper right')
-    plt.xlabel('# of training samples')
-    plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+        ax1.plot(train_counter, train_KLD_losses, color='blue')
+        ax1.legend(['KLD Loss'], loc='upper right')
+        ax2.plot(train_counter, train_MSE_losses, color='blue')
+        ax2.legend(['MSE Loss'], loc='upper right')
+        ax2.set_ylabel('Loss')
+        ax3.plot(train_counter, train_losses, color='blue')
+        ax3.legend(['Total Loss'], loc='upper right')
+        plt.xlabel('# of training samples')
+        plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
+    
+    elif len(train_history) == 2:
+        # latent result
+        train_counter, train_losses = train_history
+        train_counter = train_counter[skip_N:]
+        train_losses = train_losses[skip_N:]
 
-# plot training losses history
-def plot_train_losses2(train_history):
-    train_counter, train_losses = train_history
+        fig, ax = plt.subplots(1,1)
+        ax.plot(train_counter, train_losses, color='blue')
+        ax.legend(['Total Loss'], loc='upper right')
+        plt.xlabel('# of training samples')
+        plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
 
-    fig, ax = plt.subplots(1,1)
-    ax.plot(train_counter, train_losses, color='blue')
-    ax.legend(['Total Loss'], loc='upper right')
-    plt.xlabel('# of training samples')
-    plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
+    else:
+        pass

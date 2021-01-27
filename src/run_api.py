@@ -62,8 +62,8 @@ class Logger():
     '''
     Data logger
     '''
-    def __init__(self, root_dir, is_save_data=True):
-        if is_save_data:
+    def __init__(self, root_dir, save_data=True):
+        if save_data:
             if not os.path.isdir(root_dir):
                 os.makedirs(root_dir)
             folder_name = datetime.datetime.now().strftime("%Y_%h_%d_%H_%M_%S")
@@ -159,7 +159,8 @@ if __name__ == '__main__':
     controller_type = config['sim_params']['controller_type']
     train_mode = config['sim_params']['train_mode']
     output_path = config['sim_params']['output_path']
-    is_save_data = config['sim_params']['is_save_data']
+    save_data = config['sim_params']['save_data']
+    initial_pose = eval(config['sim_params']['initial_pose'])
 
     # Control settings
     max_yawRate = config['ctrl_params']['max_yawRate']
@@ -173,16 +174,16 @@ if __name__ == '__main__':
     mode_axis = config['rc_params']['mode_axis']
 
     # Visualize settings
-    is_plot_heading = config['visualize_params']['is_plot_heading']
-    is_plot_2Dpos = config['visualize_params']['is_plot_2Dpos']
+    plot_heading = config['visualize_params']['plot_heading']
+    plot_2Dpos = config['visualize_params']['plot_2Dpos']
 
     # Visualize Init
     disp_handle = Display(
         image_size=image_size, 
         loop_rate=loop_rate,
-        plot_heading=is_plot_heading)
+        plot_heading=plot_heading)
 
-    if is_plot_2Dpos:
+    if plot_2Dpos:
         fig, ax = plt.subplots()
         pos_handle = DynamicPlot(fig, ax, max_width=120*loop_rate)
 
@@ -199,7 +200,7 @@ if __name__ == '__main__':
                             max_yawRate=max_yawRate)
 
     # Data logger Init
-    data_logger = Logger(root_dir=os.path.join(setup_path.parent_dir, output_path), is_save_data=is_save_data)
+    data_logger = Logger(root_dir=os.path.join(setup_path.parent_dir, output_path), save_data=save_data)
 
     '''
     Main Code
@@ -209,12 +210,16 @@ if __name__ == '__main__':
         client.enableApiControl(True)
         client.armDisarm(True)
 
-        # Initial pose
-        init_position = airsim.Vector3r(115, 181, -height)
-        init_orientation = airsim.to_quaternion(0, 0, np.pi*np.random.rand())
-        intial_pose = airsim.Pose(init_position, init_orientation)
-        client.simSetVehiclePose(intial_pose, True)
-        
+        # # Initial pose
+        # init_position = airsim.Vector3r(115, 181, -height)
+        # init_orientation = airsim.to_quaternion(0, 0, np.pi*np.random.rand())
+        # intial_pose = airsim.Pose(init_position, init_orientation)
+
+        init_position = airsim.Vector3r(initial_pose[0], initial_pose[1], -initial_pose[2])
+        init_orientation = airsim.to_quaternion(0, 0, initial_pose[3])
+        client.simSetVehiclePose(airsim.Pose(init_position, init_orientation), True)
+        time.sleep(0.5)
+
         # Take-off
         print("Taking off, please wait...")
         client.takeoffAsync().join()
@@ -233,10 +238,11 @@ if __name__ == '__main__':
             # Check collision
             state_machine.check_collision(client.simGetCollisionInfo().has_collided)
             if client.simGetCollisionInfo().has_collided:
-                client.enableApiControl(True)
                 client.reset()
+                client.enableApiControl(True)
                 client.simSetVehiclePose(generate_random_pose(height), True)
-                data_logger.crash_count += 1
+                if save_data:
+                    data_logger.crash_count += 1
 
             # Get Multirotor estimated states
             drone_state = client.getMultirotorState()
@@ -270,7 +276,7 @@ if __name__ == '__main__':
                     image_depth = (image_depth * 255).astype(np.uint8)
 
             # Data logging
-            if state_machine.get_flight_mode() == 'mission' and is_save_data:
+            if state_machine.get_flight_mode() == 'mission' and save_data:
                 data_logger.save_image('color', image_color)
                 data_logger.save_image('depth', image_depth)
                 data_logger.save_csv(drone_state.timestamp, drone_state.kinematics_estimated, yaw_cmd)
@@ -278,7 +284,7 @@ if __name__ == '__main__':
             # Update plots
             disp_handle.update(image_color, yaw_cmd)
 
-            if is_plot_2Dpos:
+            if plot_2Dpos:
                 pos_handle.update(drone_state.kinematics_estimated.position.x_val, drone_state.kinematics_estimated.position.y_val)
 
             # Execute Controller
@@ -309,7 +315,7 @@ if __name__ == '__main__':
         disp_handle.clean()
         joy.clean()
         data_logger.clean()
-        # client.armDisarm(False)
+        client.armDisarm(False)
         client.enableApiControl(False)
         client.reset()
         print('Exit the program successfully!')

@@ -2,8 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-
-class MyNN(nn.Module):
+class MyLatent(nn.Module):
     '''
     Simple fully-connected network for IL
     '''
