@@ -20,6 +20,25 @@ def get_yaw_from_orientation(orientation):
     pitch, roll, yaw = airsim.to_eularian_angles(orientation) # in radians
     return yaw 
 
+# Get the color and depth images in numpy.array
+def get_camera_images(client, image_size):
+    camera_response = client.simGetImages([
+    # uncompressed RGB array bytes 
+    airsim.ImageRequest('0', airsim.ImageType.Scene, False, False),
+    # floating point uncompressed image
+    airsim.ImageRequest('1', airsim.ImageType.DepthVis, True, False)])
+    for _, response in enumerate(camera_response):
+        # Color image
+        if response.image_type == airsim.ImageType.Scene:
+            image_color = np.frombuffer(response.image_data_uint8, dtype=np.uint8)
+            image_color = image_color.reshape(image_size[0], image_size[1], 3)
+        # Depth image
+        if response.image_type == airsim.ImageType.DepthVis:
+            image_depth = np.asarray(response.image_data_float, dtype=np.float32)
+            image_depth = image_depth.reshape(image_size[0], image_size[1])
+            image_depth = (image_depth * 255).astype(np.uint8)
+    return image_color, image_depth
+
 class StateMachine():
     '''
     A high-level state machine
@@ -65,6 +84,9 @@ class StateMachine():
         else:
             self.is_expert = True
 
+    def get_controller_type(self):
+        return self.is_expert
+
 class Logger():
     '''
     Data logger
@@ -88,7 +110,7 @@ class Logger():
     def save_image(self, type, img):
         cv2.imwrite(os.path.join(self.path+'/'+type, "%07i.png" % self.index), img)
 
-    def save_csv(self, timestamp, state, yaw_cmd):
+    def save_csv(self, timestamp, state, cmd):
         values = [
             str(timestamp), # timestamp
             state.position.x_val, # pos_x
@@ -96,7 +118,7 @@ class Logger():
             state.position.z_val, # pos_z
             get_yaw_from_orientation(state.orientation), # yaw
             state.angular_velocity.z_val, # yaw_rate
-            yaw_cmd, # yaw_cmd
+            cmd, # yaw_cmd
             self.crash_count, # crash_count
             self.index] # image_name
         self.filewriter.writerow(values)
@@ -168,6 +190,7 @@ class Controller():
 
     def step(self, yaw_cmd, flight_mode):
         if flight_mode == 'hover':
+            # hover
             self.client.rotateByYawRateAsync(yaw_rate=yaw_cmd * self.max_yawRate,
                         duration=1)
 

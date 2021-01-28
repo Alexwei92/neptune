@@ -61,10 +61,12 @@ if __name__ == '__main__':
     # 1) Linear Regression
     if train_reg:
         print('======= Linear Regression Controller =========')
+        image_size = eval(config['ctrl_params']['image_size'])
         weight_filename = config['train_params']['reg_weight_filename']
         
         # Create the agent
-        reg_agent = RegTrain(dataset_dir, cmd_index=cmd_index, preload=True)
+        reg_agent = RegTrain(dataset_dir, image_size=image_size, 
+                        cmd_index=cmd_index, preload=True)
 
         # Train
         reg_agent.train()
@@ -86,7 +88,7 @@ if __name__ == '__main__':
 
         # DataLoader
         print('Loading VAE datasets...')
-        all_data = ImageDataset(dataset_dir, resize=img_resize)
+        all_data = ImageDataset(dataset_dir, resize=img_resize, preload=False)
         train_data, test_data = train_test_split(all_data, test_size=0.1, random_state=11) # split into train and test datasets
 
         train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=6)
@@ -122,7 +124,7 @@ if __name__ == '__main__':
 
         # DataLoader
         print('Loading latent datasets...')
-        data = LatentDataset(dataset_dir, cmd_index=cmd_index, resize=img_resize)
+        data = LatentDataset(dataset_dir, cmd_index=cmd_index, resize=img_resize, preload=True)
         data_loader = DataLoader(data, batch_size=batch_size, shuffle=True, num_workers=6)
         print('Load latent datasets successfully.')
 

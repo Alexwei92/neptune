@@ -51,7 +51,6 @@ if __name__ == '__main__':
     plot_heading = config['visualize_params']['plot_heading']
     plot_2Dpos = config['visualize_params']['plot_2Dpos']
 
-
     # Visualize Init
     disp_handle = Display(
         image_size=image_size, 
@@ -87,9 +86,9 @@ if __name__ == '__main__':
                             z_dim=z_dim,
                             image_resize=img_resize)
     else:
+        # agent_type = 'none'
         dagger_type = 'none'
         print('No agent controller currently available.')
-
 
     # State Machine Init
     state_machine = StateMachine(
@@ -99,6 +98,9 @@ if __name__ == '__main__':
     )
 
     # Data logger Init
+    if train_mode == 'test':
+        save_data = False
+
     data_logger = Logger(root_dir=os.path.join(setup_path.parent_dir, output_path),
                         save_data=save_data)
 
@@ -110,21 +112,21 @@ if __name__ == '__main__':
         client.enableApiControl(True)
         client.armDisarm(True)
 
+        # Take-off
+        print("Taking off")
+        client.takeoffAsync()
+
         # Initial pose
         init_position = airsim.Vector3r(initial_pose[0], initial_pose[1], -initial_pose[2])
         init_orientation = airsim.to_quaternion(0, 0, initial_pose[3])
-        client.simSetVehiclePose(airsim.Pose(init_position, init_orientation), True)
+        client.simSetVehiclePose(airsim.Pose(init_position, init_orientation), ignore_collison=True)
         time.sleep(0.5)
 
-        # Take-off
-        print("Taking off, please wait...")
-        client.takeoffAsync().join()
-        print("Start the loop")
-
-        # Multithreading process for display
+        # Multi-threading process for display
         disp_thread = threading.Thread(target=disp_handle.run)
         disp_thread.start()
 
+        print("Ready to fly!")
         while True:
             now = time.time() # loop start time
 
@@ -133,15 +135,16 @@ if __name__ == '__main__':
             if client.simGetCollisionInfo().has_collided:
                 client.reset()
                 client.enableApiControl(True)
-                client.simSetVehiclePose(generate_random_pose(initial_pose), True)
+                client.armDisarm(True)
+                client.simSetVehiclePose(generate_random_pose(initial_pose), ignore_collison=True)
                 if save_data:
                     data_logger.crash_count += 1
 
             # Get Multirotor estimated states
             drone_state = client.getMultirotorState()
             
-            # Update yaw command from RC/joystick
-            yaw_cmd = joy.get_input(yaw_axis)
+            # Update pilot yaw command from RC/joystick
+            pilot_cmd = joy.get_input(yaw_axis)
 
             # Update flight mode from RC/joystick
             state_machine.set_flight_mode(joy.get_input(mode_axis))
@@ -149,81 +152,66 @@ if __name__ == '__main__':
             # Update controller type from RC/joystick
             state_machine.set_controller_type(joy.get_input(type_axis))
 
-            # Get the Images in FPV
-            camera_response = client.simGetImages([
-                # uncompressed RGB array bytes 
-                airsim.ImageRequest('0', airsim.ImageType.Scene, False, False),
-                # floating point uncompressed image
-                airsim.ImageRequest('1', airsim.ImageType.DepthVis, True, False)])
-
-            for _, response in enumerate(camera_response):
-                # Color image
-                if response.image_type == airsim.ImageType.Scene:
-                    image_color = np.frombuffer(response.image_data_uint8, dtype=np.uint8)
-                    image_color = image_color.reshape(image_size[0], image_size[1], 3)
-                # Depth image
-                if response.image_type == airsim.ImageType.DepthVis:
-                    image_depth = np.asarray(response.image_data_float, dtype=np.float32)
-                    image_depth = image_depth.reshape(image_size[0], image_size[1])
-                    image_depth = (image_depth * 255).astype(np.uint8)
+            # Get FPV images
+            image_color, image_depth = get_camera_images(client, image_size)
 
             # Data logging
             if state_machine.get_flight_mode() == 'mission' and save_data:
                 data_logger.save_image('color', image_color)
                 data_logger.save_image('depth', image_depth)
-                data_logger.save_csv(drone_state.timestamp, drone_state.kinematics_estimated, yaw_cmd)
+                data_logger.save_csv(drone_state.timestamp, drone_state.kinematics_estimated, pilot_cmd)
 
             # Update controller commands
-            controller.set_current_yaw(get_yaw_from_orientation(drone_state.kinematics_estimated.orientation))
+            current_yaw = get_yaw_from_orientation(drone_state.kinematics_estimated.orientation)
+            controller.set_current_yaw(current_yaw)
+
             if state_machine.is_expert or state_machine.flight_mode == 'hover':
-                controller.step(yaw_cmd, state_machine.get_flight_mode())
-                cmd = yaw_cmd
-            
+                controller.step(pilot_cmd, state_machine.get_flight_mode())
             else:
                 if state_machine.agent_type == 'reg':
                     yawRate = drone_state.kinematics_estimated.angular_velocity.z_val
-                    cmd = controller_agent.predict(image_color, image_depth, yawRate)
-                    controller.step(cmd, 'mission')
-
+                    agent_cmd = controller_agent.predict(image_color, image_depth, yawRate)
+                    controller.step(agent_cmd, 'mission')
                 elif state_machine.agent_type == 'latent':
-                    cmd = controller_agent.predict(image_color)
-                    controller.step(cmd, 'mission')
-                
+                    agent_cmd = controller_agent.predict(image_color)
+                    controller.step(agent_cmd, 'mission')
                 else:
-                    pass
+                    raise Exception('***You must define an agent type!')
 
             # Update plots
             if train_mode == 'test':
                 if state_machine.is_expert:
-                    disp_handle.update(image_color, yaw_cmd, True)
+                    disp_handle.update(image_color, pilot_cmd, True)
                 else:
-                    disp_handle.update(image_color, cmd, False)
-            else:
+                    disp_handle.update(image_color, agent_cmd, False)
+            elif train_mode == 'train':
                 if dagger_type == 'vanilla' or dagger_type =='none':
-                    disp_handle.update(image_color, yaw_cmd, True)
+                    disp_handle.update(image_color, pilot_cmd, True)
 
                 elif dagger_type == 'hg':
                     if state_machine.is_expert:
-                        disp_handle.update(image_color, yaw_cmd, True)
+                        disp_handle.update(image_color, pilot_cmd, True)
                     else:
-                        disp_handle.update(image_color, cmd, False)
+                        disp_handle.update(image_color, agent_cmd, False)
                 else:
                     raise Exception('***Unknown Dagger type!')
+            else:
+                raise Exception('***Unknown Train mode!')
 
             if plot_2Dpos:
-                pos_handle.update(drone_state.kinematics_estimated.position.x_val, drone_state.kinematics_estimated.position.y_val)
+                pos_handle.update(drone_state.kinematics_estimated.position.x_val, 
+                                  drone_state.kinematics_estimated.position.y_val)
 
             # for CV plotting
             key = cv2.waitKey(1) & 0xFF
             if (key == 27 or key == ord('q')):
-                client.reset()
                 break
 
             # Ensure that the loop is running at a fixed rate
             elapsed_time = time.time() - now
             if (1./loop_rate - elapsed_time) < 0.0:
                 print('[WARNING] The main loop rate is too high, consider to reduce the rate!')
-                print('Real-time loop rate: {:.2f}'.format(1./elapsed_time))
+                print('Main loop rate: {:.2f} Hz'.format(1./elapsed_time))
             else:
                 time.sleep(1./loop_rate - elapsed_time)
 

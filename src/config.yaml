@@ -1,14 +1,14 @@
 # Simulation parameters
 sim_params:
   loop_rate:                  10.0 # Hz
-  output_path:                'my_datasets/marie/nh'
-  save_data:                  False # {True, False}
+  output_path:                'my_datasets/peng/river/iter0' # save data to this path
+  save_data:                  True # {True, False}
 
-  agent_type:                 'latent' # {'none', 'reg', 'latent'}
-  dagger_type:                'vanilla' # {'none', 'vanilla', 'hg'}
+  agent_type:                 'none' # {'none', 'reg', 'latent'}
+  dagger_type:                'none' # {'none', 'vanilla', 'hg'}
   train_mode:                 'train' # {'train', 'test'}
 
-  initial_pose:               (115,181,0,0) # {pos_x, pos_y, pos_z, yaw} e.g. (115,181,0,0) in nh
+  initial_pose:               (0,0,5,1.4) # {pos_x, pos_y, pos_z, yaw} e.g. (115,181,5,0) in nh
 
 # Controller parameters
 ctrl_params:
@@ -16,45 +16,46 @@ ctrl_params:
   forward_speed:              2.0  # m/s
   height:                     5.0  # m
   image_size:                 (480, 640) # Width x Height 
-  model_path:                 'my_outputs/marie/nh/iter0'
+  model_path:                 'my_outputs/peng/nh/iter0' # model file path
 
 # RC/Joystick parameters
 rc_params:
-  device_id:                  0 
-  yaw_axis:                   3
-  type_axis:                  5
-  mode_axis:                  6
+  device_id:                  0 # device ID
+  yaw_axis:                   3 # yaw axis
+  mode_axis:                  5 # flight mode axis (e.g., hover, mission)
+  type_axis:                  6 # controller type axis (e.g., expert, agent)
+  
 
 # Visualize parameters
 visualize_params:
-  plot_2Dpos:                 False
-  plot_heading:               True 
+  plot_2Dpos:                 False # plot a 2D trajectory in a new window
+  plot_heading:               True # plot a heading bar in the current window
 
 # Training parameters
 train_params:
-  dataset_dir:                'my_datasets/marie/nh/2021_Jan_27_16_18_12'
-  output_dir:                 'my_outputs/marie/nh/iter0'
+  dataset_dir:                'my_datasets/peng/river/iter0' # source datasets path
+  output_dir:                 'my_outputs/peng/river/iter0' # save output to this path
   
   cmd_index:                  6 # column index of yaw command in .csv file
   
-  train_reg:                  False
-  train_vae:                  False
-  train_latent:               True
+  train_reg:                  True # enable train linear regression weights
+  train_vae:                  True # enable train VAE model
+  train_latent:               True  # enable train latent controller network model
   result_only:                False # this will disable all trainings and only show results
 
   z_dim:                      10 # latent dimension
   img_resize:                 (64, 64) # resize image before VAE, right now only support (64, 64)
 
-  reg_weight_filename:        'reg_weight.csv'
+  reg_weight_filename:        'reg_weight.csv' # linear regression weight file name
 
-  vae_n_epochs:               300
-  vae_batch_size:             32
-  vae_checkpoint_filename:    'vae_checkpoint.pt'
-  vae_checkpoint_preload:     False
-  vae_model_filename:         'vae_model.pt'
+  vae_n_epochs:               300 # number of epochs
+  vae_batch_size:             32 # batch size
+  vae_checkpoint_filename:    'vae_checkpoint.pt' # checkpoint file name
+  vae_checkpoint_preload:     False # preload a VAE checkpoint
+  vae_model_filename:         'vae_model.pt' # save VAE model to this file name
 
-  latent_n_epochs:            200
-  latent_batch_size:          32
-  latent_checkpoint_filename: 'latent_checkpoint.pt'
-  latent_checkpoint_preload:  True
-  latent_model_filename:      'latent_model.pt'
+  latent_n_epochs:            200 # number of epochs
+  latent_batch_size:          32 # batch size
+  latent_checkpoint_filename: 'latent_checkpoint.pt' # latent controller checkpoint file name
+  latent_checkpoint_preload:  True # preload a latent controller checkpoint
+  latent_model_filename:      'latent_model.pt' # save latent controller model to this file name
