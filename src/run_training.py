@@ -64,7 +64,7 @@ if __name__ == '__main__':
         weight_filename = config['train_params']['reg_weight_filename']
         
         # Create the agent
-        reg_agent = RegTrain(dataset_dir, cmd_index=cmd_index, preload=False)
+        reg_agent = RegTrain(dataset_dir, cmd_index=cmd_index, preload=True)
 
         # Train
         reg_agent.train()

@@ -9,9 +9,9 @@ import airsim
 from utils import plot_with_heading, plot_without_heading
 
 # Generate random pose
-def generate_random_pose(height):
-    position = airsim.Vector3r(2.5*np.random.rand(), 2.5*np.random.rand(), -height)
-    orientation = airsim.to_quaternion(0, 0, np.pi*np.random.rand())
+def generate_random_pose(initial_pose):
+    position = airsim.Vector3r(2.5*np.random.rand()+initial_pose[0], 2.5*np.random.rand()+initial_pose[1], -initial_pose[2])
+    orientation = airsim.to_quaternion(0, 0, np.pi*np.random.rand()+initial_pose[3])
     intial_pose = airsim.Pose(position, orientation)
     return intial_pose
 

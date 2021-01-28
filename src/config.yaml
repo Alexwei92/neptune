@@ -1,14 +1,14 @@
 # Simulation parameters
 sim_params:
   loop_rate:                  10.0 # Hz
-  output_path:                'my_datasets/peng/test'
+  output_path:                'my_datasets/marie/nh'
   save_data:                  False # {True, False}
 
-  agent_type:                 'reg' # {'none', 'reg', 'latent'}
-  dagger_type:                'none' # {'none', 'vanilla', 'hg'}
+  agent_type:                 'latent' # {'none', 'reg', 'latent'}
+  dagger_type:                'vanilla' # {'none', 'vanilla', 'hg'}
   train_mode:                 'train' # {'train', 'test'}
 
-  initial_pose:               (115,181,0,0) # {pos_x, pos_y, pos_z, yaw} e.g. (115,181,0,0)
+  initial_pose:               (115,181,0,0) # {pos_x, pos_y, pos_z, yaw} e.g. (115,181,0,0) in nh
 
 # Controller parameters
 ctrl_params:
@@ -16,7 +16,7 @@ ctrl_params:
   forward_speed:              2.0  # m/s
   height:                     5.0  # m
   image_size:                 (480, 640) # Width x Height 
-  model_path:                 'my_outputs/test/iter0'
+  model_path:                 'my_outputs/marie/nh/iter0'
 
 # RC/Joystick parameters
 rc_params:
@@ -25,7 +25,6 @@ rc_params:
   type_axis:                  5
   mode_axis:                  6
 
-
 # Visualize parameters
 visualize_params:
   plot_2Dpos:                 False
@@ -33,14 +32,14 @@ visualize_params:
 
 # Training parameters
 train_params:
-  dataset_dir:                'my_datasets/test/2021_Jan_27_08_24_26'
-  output_dir:                 'my_outputs/test/iter0'
+  dataset_dir:                'my_datasets/marie/nh/2021_Jan_27_16_18_12'
+  output_dir:                 'my_outputs/marie/nh/iter0'
   
   cmd_index:                  6 # column index of yaw command in .csv file
   
-  train_reg:                  True
+  train_reg:                  False
   train_vae:                  False
-  train_latent:               False
+  train_latent:               True
   result_only:                False # this will disable all trainings and only show results
 
   z_dim:                      10 # latent dimension
@@ -51,10 +50,10 @@ train_params:
   vae_n_epochs:               300
   vae_batch_size:             32
   vae_checkpoint_filename:    'vae_checkpoint.pt'
-  vae_checkpoint_preload:     True
+  vae_checkpoint_preload:     False
   vae_model_filename:         'vae_model.pt'
 
-  latent_n_epochs:            400
+  latent_n_epochs:            200
   latent_batch_size:          32
   latent_checkpoint_filename: 'latent_checkpoint.pt'
   latent_checkpoint_preload:  True

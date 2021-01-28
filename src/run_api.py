@@ -111,10 +111,6 @@ if __name__ == '__main__':
         client.armDisarm(True)
 
         # Initial pose
-        # init_position = airsim.Vector3r(115, 181, -height)
-        # init_orientation = airsim.to_quaternion(0, 0, np.pi*np.random.rand())
-        # intial_pose = airsim.Pose(init_position, init_orientation)
-
         init_position = airsim.Vector3r(initial_pose[0], initial_pose[1], -initial_pose[2])
         init_orientation = airsim.to_quaternion(0, 0, initial_pose[3])
         client.simSetVehiclePose(airsim.Pose(init_position, init_orientation), True)
@@ -137,7 +133,7 @@ if __name__ == '__main__':
             if client.simGetCollisionInfo().has_collided:
                 client.reset()
                 client.enableApiControl(True)
-                client.simSetVehiclePose(generate_random_pose(height), True)
+                client.simSetVehiclePose(generate_random_pose(initial_pose), True)
                 if save_data:
                     data_logger.crash_count += 1
 
@@ -181,22 +177,38 @@ if __name__ == '__main__':
             controller.set_current_yaw(get_yaw_from_orientation(drone_state.kinematics_estimated.orientation))
             if state_machine.is_expert or state_machine.flight_mode == 'hover':
                 controller.step(yaw_cmd, state_machine.get_flight_mode())
+                cmd = yaw_cmd
             
             else:
                 if state_machine.agent_type == 'reg':
                     yawRate = drone_state.kinematics_estimated.angular_velocity.z_val
-                    yaw_cmd = controller_agent.predict(image_color, image_depth, yawRate)
-                    controller.step(yaw_cmd, 'mission')
+                    cmd = controller_agent.predict(image_color, image_depth, yawRate)
+                    controller.step(cmd, 'mission')
 
                 elif state_machine.agent_type == 'latent':
-                    yaw_cmd = controller_agent.predict(image_color)
-                    controller.step(yaw_cmd, 'mission')
+                    cmd = controller_agent.predict(image_color)
+                    controller.step(cmd, 'mission')
                 
                 else:
                     pass
 
             # Update plots
-            disp_handle.update(image_color, yaw_cmd, state_machine.is_expert)
+            if train_mode == 'test':
+                if state_machine.is_expert:
+                    disp_handle.update(image_color, yaw_cmd, True)
+                else:
+                    disp_handle.update(image_color, cmd, False)
+            else:
+                if dagger_type == 'vanilla' or dagger_type =='none':
+                    disp_handle.update(image_color, yaw_cmd, True)
+
+                elif dagger_type == 'hg':
+                    if state_machine.is_expert:
+                        disp_handle.update(image_color, yaw_cmd, True)
+                    else:
+                        disp_handle.update(image_color, cmd, False)
+                else:
+                    raise Exception('***Unknown Dagger type!')
 
             if plot_2Dpos:
                 pos_handle.update(drone_state.kinematics_estimated.position.x_val, drone_state.kinematics_estimated.position.y_val)
