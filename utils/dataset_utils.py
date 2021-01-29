@@ -87,7 +87,9 @@ class LatentDataset(Dataset):
             data = np.genfromtxt(os.path.join(subfolder_path, 'airsim.csv'),
                                     delimiter=',', skip_header=True, dtype=np.float32)
             data = data[:, cmd_index]
+
             self.data = np.concatenate((self.data, data), axis=0)
+
 
     def __len__(self):
         return len(self.data)

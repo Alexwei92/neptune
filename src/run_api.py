@@ -157,9 +157,12 @@ if __name__ == '__main__':
 
             # Data logging
             if state_machine.get_flight_mode() == 'mission' and save_data:
-                data_logger.save_image('color', image_color)
-                data_logger.save_image('depth', image_depth)
-                data_logger.save_csv(drone_state.timestamp, drone_state.kinematics_estimated, pilot_cmd)
+                if (dagger_type == 'hg') and (not state_machine.is_expert):
+                    pass
+                else:
+                    data_logger.save_image('color', image_color)
+                    data_logger.save_image('depth', image_depth)
+                    data_logger.save_csv(drone_state.timestamp, drone_state.kinematics_estimated, pilot_cmd)
 
             # Update controller commands
             current_yaw = get_yaw_from_orientation(drone_state.kinematics_estimated.orientation)
@@ -167,6 +170,7 @@ if __name__ == '__main__':
 
             if state_machine.is_expert or state_machine.flight_mode == 'hover':
                 controller.step(pilot_cmd, state_machine.get_flight_mode())
+                agent_cmd = pilot_cmd
             else:
                 if state_machine.agent_type == 'reg':
                     yawRate = drone_state.kinematics_estimated.angular_velocity.z_val

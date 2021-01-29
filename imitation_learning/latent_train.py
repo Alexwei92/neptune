@@ -77,7 +77,7 @@ class LatentTrain():
 
     def save_checkpoint(self, epoch, file_path):
         torch.save({
-            'epoch': epoch,
+            'epoch': epoch + self.last_epoch,
             'model_state_dict': self.Latent_model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'train_losses': self.train_losses,

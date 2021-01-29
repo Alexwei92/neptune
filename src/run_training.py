@@ -42,11 +42,24 @@ if __name__ == '__main__':
         # Only display results, no training
         train_reg, train_vae, train_latent = False, False, False
 
+        batch_size = config['train_params']['vae_batch_size']
+        img_resize = eval(config['train_params']['img_resize'])
+        all_data = ImageDataset(dataset_dir, resize=img_resize, preload=True)
+        _, test_data = train_test_split(all_data, test_size=0.1, random_state=11) # split into train and test datasets
+        test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True, num_workers=6)
+
         z_dim = config['train_params']['z_dim']
         vae_checkpoint_filename = config['train_params']['vae_checkpoint_filename']
         vae_agent = VAETrain(MyVAE(z_dim))
         vae_agent.load_checkpoint(os.path.join(output_dir, vae_checkpoint_filename))
         vae_agent.plot_train_result()
+
+        examples = enumerate(test_loader) 
+        batch_idx, example_data = next(examples) 
+        with torch.no_grad(): 
+            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") 
+            generated_data, _, _ = vae_agent.VAE_model(example_data.to(device)) 
+            plot_generate_figure(generated_data.cpu(), example_data, N=6) 
 
         latent_checkpoint_filename = config['train_params']['latent_checkpoint_filename']
         latent_agent = LatentTrain(MyLatent(z_dim), MyVAE(z_dim))
@@ -88,7 +101,7 @@ if __name__ == '__main__':
 
         # DataLoader
         print('Loading VAE datasets...')
-        all_data = ImageDataset(dataset_dir, resize=img_resize, preload=False)
+        all_data = ImageDataset(dataset_dir, resize=img_resize, preload=True)
         train_data, test_data = train_test_split(all_data, test_size=0.1, random_state=11) # split into train and test datasets
 
         train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=6)
@@ -109,7 +122,7 @@ if __name__ == '__main__':
                 vae_agent.save_checkpoint(epoch, os.path.join(output_dir, vae_checkpoint_filename))
                 vae_agent.save_model(os.path.join(output_dir, vae_model_filename))
         print('Trained VAE model successfully.')
-
+         
     # 3) Controller Network
     if train_latent:
         print('============= Latent Controller ==============')

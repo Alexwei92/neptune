@@ -15,6 +15,10 @@ def calculate_regression(X, y, disp_summary=False):
     R_square = reg.score(X, y)
     print('r_square = {:.6f}'.format(R_square))
 
+    mse = np.mean((reg.predict(X)-y)**2)
+    rmse = np.sqrt(mse)
+    print('MSE = {:.6f}'.format(mse))
+    print('RMSE = {:.6f}'.format(rmse))
     # if disp_summary:
     #     X2 = sm.add_constant(X)
     #     est = sm.OLS(y, X2)
@@ -67,7 +71,7 @@ class RegTrain():
             
         X_extra, y = self.read_telemetry(folder_path, self.cmd_index)
         X = np.concatenate((X, X_extra), axis=1)
-        print('Load linear regression samples successfully.')
+        # print('Load linear regression samples successfully.')
         return X, y
 
     def read_telemetry(self, folder_path, index):
