@@ -2,55 +2,76 @@ import numpy as np
 import cv2
 import os
 import glob
+import time
 
 # Radon
 from skimage.transform import radon
 from skimage.util import img_as_float
 import heapq
 
+from config import *
+
 class FeatureExtract():
-    def __init__(self, config, image_size):
+    def __init__(self, config, image_size, printout=False):
         self.config = config
+        self.image_size = image_size
+        self.precision = np.float32
+        self.printout = printout
+
+        self.configure()
+
+    def configure(self):
 
         # Sliding Window Init (only executed once)
-        image_height = image_size[0]
-        image_width = image_size[1]
+        image_height = self.image_size[0]
+        image_width = self.image_size[1]
         split_size = (self.config['SLIDE_ROWS'], self.config['SLIDE_COLS']) # split size e.g., (#height, #width) (rows, columns)
         
         self.H_points, self.H_size = self.sliding_window(image_height, split_size[0], self.config['SLIDE_OVERLAP'], self.config['SLIDE_FLAG']) 
         self.W_points, self.W_size = self.sliding_window(image_width, split_size[1], self.config['SLIDE_OVERLAP'], self.config['SLIDE_FLAG'])
-
+        
         # # GPU init
         # self.image_gpu = cv2.cuda_GpuMat()
-
         # # Hough Init
         # self.image_canny = cv2.cuda_GpuMat()
         # self.cannyFilter = cv2.cuda_CannyEdgeDetector(low_thresh=5, high_thresh=20, apperture_size=3)
         # self.houghFilter = cv2.cuda_HoughLinesDetector(rho=1, theta=(np.pi/16), threshold=3, doSort=True, maxLines=32)
         # self.houghResult_gpu = np.zeros(config['HOUGH_ANGLES'] * 2 * len(self.H_points) * len(self.W_points))
 
-        # Law Mask Init
-        self.create_lawMask(config['LAW_MASK'])
+        # Structure Tensor Init
+        # empty
 
-        # Optical Init
+        # Law Mask Init
+        self.create_lawMask(self.config['LAW_MASK'])
+
+        # Optical Flow Init
         self.image_prvs = cv2.cuda_GpuMat()
         self.image_next = cv2.cuda_GpuMat()
         self.nvof = cv2.cuda_FarnebackOpticalFlow.create(numLevels=3, pyrScale=0.5, fastPyramids=False, winSize=15,
                                                     numIters=3, polyN=5, polySigma=1.1, flags=0) 
 
-        # Color feature Init
-        # self.hough_size = config['HOUGH_ANGLES'] * 2
-        self.radon_size = config['RADON_ANGLES'] * 2
-        self.tensor_size = config['TENSOR_HISTBIN']
-        self.law_size = len(config['LAW_MASK']) + 2
-        self.flow_size = 5
-        size_each_window = self.radon_size + self.tensor_size + self.law_size + self.flow_size
+        # Color Feature Init
+        self.feature_list = [
+            # Name,              Size,                            Function handle 
+            ('radon',            self.config['RADON_ANGLES']*2,   self.radon_feature),
+            ('structure_tensor', self.config['TENSOR_HISTBIN'],   self.tensor_feature),
+            ('law_mask',         len(self.config['LAW_MASK'])+2,  self.law_feature),
+            ('optical_flow',     5,                               self.flow_feature),
+        ]
 
-        self.feature_color_result = np.zeros(size_each_window * len(self.H_points) * len(self.W_points))
+        size_each_window = 0
+        self.time_dict = {}
+        for name, size, function in self.feature_list:
+            size_each_window += size
+            self.time_dict[name] = 0.0
+
+        self.feature_color_result = np.zeros(size_each_window * len(self.H_points) * len(self.W_points), dtype=self.precision)
     
-        # Depth feature Init
+        # Depth Feature Init
         self.depth_size = 1
-        self.feature_depth_result = np.zeros(self.depth_size) * len(self.H_points) * len(self.W_points)
+        self.feature_depth_result = np.zeros(self.depth_size * len(self.H_points) * len(self.W_points), dtype=self.precision)
+        self.time_dict['depth'] = 0.0
+
 
     ''' 
     @ Sliding Window
@@ -84,6 +105,7 @@ class FeatureExtract():
                 else:
                     points.append(pt)
             counter += 1
+
         return points, window_size
 
     # '''
@@ -107,6 +129,8 @@ class FeatureExtract():
     @ Radon Feature
     '''
     def radon_feature(self, image):
+        start_time = time.perf_counter()
+
         # Convert to grayscale if necessary
         if len(image.shape) > 2:
             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -122,29 +146,32 @@ class FeatureExtract():
         sinogram = (sinogram[(sino_height%5)::5]+sinogram[(sino_height%5)+1::5]+sinogram[(sino_height%5)+2::5]+sinogram[(sino_height%5)+3::5]+sinogram[(sino_height%5)+4::5])/5
 
         # Extracting weights by getting 2 largest values for each angle
-        radon_weights = np.zeros((self.config['RADON_ANGLES'], 2))
+        radon_result = np.zeros((self.config['RADON_ANGLES'], 2))
         # Maybe could be done with enumerating, but its weird with ndarrays
         i = 0
         for row in sinogram.T:
-            radon_weights[i] = heapq.nlargest(2, row)
+            radon_result[i] = heapq.nlargest(2, row)
             i += 1
 
         # Scale the weights
         # !!! xmin and xmax may need to be changed depending on values of input image
         xmax = 512
         xmin = 0
-        radon_weights = (radon_weights - xmin)/(xmax-xmin)
+        radon_result = (radon_result - xmin)/(xmax-xmin)
 
         # Fixing shape
-        radon_weights = np.reshape(radon_weights, radon_weights.size)
+        radon_result = np.reshape(radon_result, radon_result.size)
         
-        return radon_weights
+        elapsed_time = time.perf_counter() - start_time
+        return radon_result, elapsed_time 
 
 
     '''
     @ Structure Tensor
     '''
     def tensor_feature(self, image):
+        start_time = time.perf_counter()      
+
         # Convert to grayscale if necessary
         if len(image.shape) > 2:
                 image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -185,14 +212,15 @@ class FeatureExtract():
         # orientation_hist = cv2.normalize(orientation_hist, None, alpha=1, beta=None, norm_type=cv2.NORM_L1)
         index = 0
         histbin = self.config['TENSOR_HISTBIN']
-        hist_result = np.zeros(histbin)
+        tensor_result = np.zeros(histbin)
         for k in np.linspace(0.0, 180.0, histbin, endpoint=False):
             tmp1 = (orientation_Angle >= k) & (orientation_Angle < k + 180./histbin)
             if tmp1.any():
-                hist_result[index] = np.mean(coherency[tmp1])
+                tensor_result[index] = np.mean(coherency[tmp1])
             index += 1
 
-        return hist_result
+        elapsed_time = time.perf_counter() - start_time
+        return tensor_result, elapsed_time
 
     '''
     @ Law Mask
@@ -227,50 +255,53 @@ class FeatureExtract():
             self.law_masks.append((name, lawMask_Dict[name]))
 
     def law_feature(self, image):
-        image = image.astype(np.float32)
+        start_time = time.perf_counter()   
 
+        image = image.astype(np.float32)
         if len(image.shape) == 3:
             # Convert to YCrCb colorspace
             image = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
             
             # Apply Law's masks
-            feature = np.zeros(len(self.law_masks) + 2)
+            law_result = np.zeros(len(self.law_masks) + 2)
             index = 0
             for name, mask in self.law_masks:
                 if name == "L5L5":
                     for j in range(0,3):
                         image_filtered = cv2.filter2D(image[:,:,j], cv2.CV_32F, mask.astype(np.float32))
                         image_filtered = cv2.normalize(image_filtered, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-                        feature[index] = np.mean(abs(image_filtered))
+                        law_result[index] = np.mean(abs(image_filtered))
                         index += 1            
                 else:
                     image_filtered = cv2.filter2D(image[:,:,0], cv2.CV_32F, mask.astype(np.float32))
                     image_filtered = cv2.normalize(image_filtered, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-                    feature[index] = np.mean(abs(image_filtered))
+                    law_result[index] = np.mean(abs(image_filtered))
                     index += 1    
         else:
             # if image is in grayscale
-
-            # Apply Law's masks
-            feature = np.zeros(len(mask))
+            law_result = np.zeros(len(mask))
             index = 0
             for name, mask in self.law_masks:
                 image_filtered = cv2.filter2D(image[:,:,0], cv2.CV_32F, mask.astype(np.float32))
                 image_filtered = cv2.normalize(image_filtered, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-                feature[index] = np.mean(abs(image_filtered))
+                law_result[index] = np.mean(abs(image_filtered))
                 index += 1    
 
-        return feature 
+        elapsed_time = time.perf_counter() - start_time
+        return law_result, elapsed_time
 
     '''
     @ Optical Flow
     '''
     def flow_feature(self, image):
+        start_time = time.perf_counter()   
+
+        # Convert to grayscale
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
         if self.image_prvs.empty():
+            # if no previous image to compare, duplicate the current one
             self.image_prvs.upload(image)
-            return np.zeros(5)
 
         self.image_next.upload(image)
 
@@ -283,26 +314,31 @@ class FeatureExtract():
         # Calculate magnitude and angle
         mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1])
         
-        flow_result = np.zeros(5, dtype=np.float32)
+        flow_result = np.zeros(5)
         flow_result[0] = np.amax(mag)
         flow_result[1] = np.amin(mag)
         flow_result[2] = (np.mean(flow[...,0]) + np.mean(flow[...,1])) / 2.0
         flow_result[3] = np.std(flow[...,0])
         flow_result[4] = np.std(flow[...,1])
 
-        return flow_result
+        elapsed_time = time.perf_counter() - start_time
+        return flow_result, elapsed_time
 
     '''
     @ Depth feature
     '''
-    def depth_feature(self, image):
-        # Reverse the value
-        image = 255 - image
+    def depth_feature(self, image, reverse=True):
+        start_time = time.perf_counter()   
+
+        # Reverse the pixel value
+        if reverse:
+            image = 255 - image
         
         # Currently just the average over the entire window
-        feature = np.mean(np.abs(image)) / 255.
+        depth_result = np.mean(np.abs(image)) / 255. # in range [0.0, 1.0]
 
-        return feature
+        elapsed_time = time.perf_counter() - start_time
+        return depth_result, elapsed_time
 
     '''
     @ Update function
@@ -315,23 +351,13 @@ class FeatureExtract():
         k = 0
         for i in self.H_points:
             for j in self.W_points:
+                # Cropped image
                 cropped_image = image[i:i+self.H_size, j:j+self.W_size]
 
-                # # Hough
-                # self.feature_color_result[k:k+self.hough_size] = self.hough_feature(cropped_image)
-                # k += self.hough_size
-                # Radon
-                self.feature_color_result[k:k+self.radon_size] = self.radon_feature(cropped_image)
-                k += self.radon_size
-                # Structure Tensor
-                self.feature_color_result[k:k+self.tensor_size] = self.tensor_feature(cropped_image)
-                k += self.tensor_size
-                # Law Mask
-                self.feature_color_result[k:k+self.law_size] = self.law_feature(cropped_image)
-                k += self.law_size
-                # Optical Flow
-                self.feature_color_result[k:k+self.flow_size] = self.flow_feature(cropped_image)
-                k += self.flow_size
+                for name, size, function in self.feature_list:
+                    self.feature_color_result[k:k+size], elapsed_time = function(cropped_image)
+                    self.time_dict[name] = elapsed_time
+                    k += size
 
         return self.feature_color_result
 
@@ -339,23 +365,61 @@ class FeatureExtract():
         # Get features for each window
         k = 0
         for i in self.H_points:
-            for j in self.W_points:              
+            for j in self.W_points:    
+                # Cropped images          
                 cropped_image = image[i:i+self.H_size, j:j+self.W_size]
 
-                # Depth
-                self.feature_depth_result[k:k+self.depth_size] = self.depth_feature(cropped_image)
+                self.feature_depth_result[k:k+self.depth_size], elapsed_time = self.depth_feature(cropped_image)
+                self.time_dict['depth'] = elapsed_time
                 k += self.depth_size
 
         return self.feature_depth_result
 
-
     def step(self, image_color, image_depth):
         self.update_color(image_color)
         self.update_depth(image_depth)
+        # Update time for each feature functions
+        self.format_time(self.printout)
         return np.concatenate((self.feature_color_result, self.feature_depth_result))
+
+    def format_time(self, printout=True):
+        # Format the elapsed time and print out 
+        factor = 1.0 / sum(self.time_dict.values())
+        for key in self.time_dict:
+            self.time_dict[key] *= factor
+            
+            if printout:
+                print('{:s}: {:.2%},'.format(key, self.time_dict[key]), end=" ")        
+        
+        if printout:
+            print('')
 
 
     def get_size(self):
         return len(self.feature_color_result) + len(self.feature_depth_result)
 
 
+if __name__ == '__main__':
+    folder_path = '/home/lab/Documents/Peng/neptune/my_datasets/peng/test/iter0/2021_Jan_27_08_24_26'
+
+    files_list1 = glob.glob(os.path.join(folder_path, 'color', '*.png'))
+    files_list2 = glob.glob(os.path.join(folder_path, 'depth', '*.png'))
+    files_list1.sort()
+    files_list2.sort()
+
+    image_size = (480, 640)
+    a = FeatureExtract(feature_config, image_size)
+
+    result = np.zeros((len(files_list1), a.get_size()), dtype=np.float32)
+
+    i = 0
+    for color_file, depth_file in zip(files_list1, files_list2):
+        print(color_file)
+        
+        image_color = cv2.imread(color_file, cv2.IMREAD_UNCHANGED)
+        image_depth = cv2.imread(depth_file, cv2.IMREAD_UNCHANGED)
+        result[i,:] = a.step(image_color, image_depth)
+
+        if sum(result[i,:] == np.inf) > 0:
+            print('Error')
+        i += 1  
