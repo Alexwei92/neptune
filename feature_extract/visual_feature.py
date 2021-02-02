@@ -47,7 +47,7 @@ class FeatureExtract():
             # Name,              Size,                            Function handle 
             ('hough',            self.config['HOUGH_ANGLES'],     self.hough_feature),
             ('structure_tensor', self.config['TENSOR_HISTBIN'],   self.tensor_feature),
-            ('law_mask',         len(self.config['LAW_MASK'])+2,  self.law_feature),
+            ('law_mask',         len(self.config['LAW_MASK']),  self.law_feature),
             ('optical_flow',     5,                               self.flow_feature),
         ]
 
@@ -177,27 +177,28 @@ class FeatureExtract():
     '''
     def create_lawMask(self, masks):
         # Law's filters
-        L3 = np.array([1,2,1])
-        E3 = np.array([-1,0,1])
-        S3 = np.array([-1,2,-1])
-        L5 = np.array([1,4,6,4,1])
-        E5 = np.array([-1,-2,0,2,1])
-        S5 = np.array([-1,0,2,0,-1])
-        W5 = np.array([-1,2,0,-2,1])
-        R5 = np.array([1,-4,6,-4,1])
+        L3 = np.array([1,2,1], dtype=np.float32)
+        E3 = np.array([-1,0,1], dtype=np.float32)
+        S3 = np.array([-1,2,-1], dtype=np.float32)
+        L5 = np.array([1,4,6,4,1], dtype=np.float32)
+        E5 = np.array([-1,-2,0,2,1], dtype=np.float32)
+        S5 = np.array([-1,0,2,0,-1], dtype=np.float32)
+        W5 = np.array([-1,2,0,-2,1], dtype=np.float32)
+        R5 = np.array([1,-4,6,-4,1], dtype=np.float32)
 
         # A dictionary of law masks
         # The most successful masks are {L5E5, E5S5, R5R5, L5S5, E5L5, S5E5, S5L5}
         lawMask_Dict = {
             "L5L5" : L5.reshape(5,1) * L5,
-            "L5E5" : L5.reshape(5,1) * E5,
-            "L5S5" : L5.reshape(5,1) * S5,
-            "E5L5" : E5.reshape(5,1) * L5,
+            "L5E5" : (L5.reshape(5,1) * E5 + E5.reshape(5,1) * L5) / 2,
+            "L5S5" : (L5.reshape(5,1) * S5 + S5.reshape(5,1) * L5) / 2,
+            "L5R5" : (L5.reshape(5,1) * R5 + R5.reshape(5,1) * L5) / 2,
             "E5E5" : E5.reshape(5,1) * E5,
-            "E5S5" : E5.reshape(5,1) * S5,
-            "S5L5" : S5.reshape(5,1) * L5,
-            "S5E5" : S5.reshape(5,1) * E5,
-            "S5S5" : S5.reshape(5,1) * S5
+            "E5S5" : (E5.reshape(5,1) * S5 + S5.reshape(5,1) * E5) / 2,
+            "E5R5" : (E5.reshape(5,1) * R5 + R5.reshape(5,1) * E5) / 2,
+            "S5S5" : S5.reshape(5,1) * S5,
+            "S5R5" : (S5.reshape(5,1) * R5 + R5.reshape(5,1) * S5) / 2,
+            "R5R5" : R5.reshape(5,1) * R5,
         }
 
         self.law_masks = []
@@ -205,34 +206,33 @@ class FeatureExtract():
             self.law_masks.append((name, lawMask_Dict[name]))
 
     def law_feature(self, image):
-        image = image.astype(np.float32)
         if len(image.shape) == 3:
             # Convert to YCrCb colorspace
             image = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
-            
+
             # Apply Law's masks
-            law_result = np.zeros(len(self.law_masks) + 2)
+            law_result = np.zeros(len(self.law_masks))
             index = 0
             for name, mask in self.law_masks:
                 if name == "L5L5":
                     for j in range(0,3):
-                        image_filtered = cv2.filter2D(image[:,:,j], cv2.CV_32F, mask.astype(np.float32))
-                        image_filtered = cv2.normalize(image_filtered, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-                        law_result[index] = np.mean(abs(image_filtered))
+                        image_filtered = cv2.filter2D(image[:,:,j], cv2.CV_32F, mask)
+                        # image_filtered = cv2.normalize(image_filtered, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+                        law_result[index] = np.mean(abs(image_filtered)) / 255
                         index += 1            
                 else:
-                    image_filtered = cv2.filter2D(image[:,:,0], cv2.CV_32F, mask.astype(np.float32))
-                    image_filtered = cv2.normalize(image_filtered, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-                    law_result[index] = np.mean(abs(image_filtered))
+                    image_filtered = cv2.filter2D(image[:,:,0], cv2.CV_32F, mask)
+                    # image_filtered = cv2.normalize(image_filtered, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+                    law_result[index] = np.mean(abs(image_filtered)) / 255
                     index += 1    
         else:
             # if image is in grayscale
-            law_result = np.zeros(len(mask))
+            law_result = np.zeros(len(self.law_masks))
             index = 0
             for name, mask in self.law_masks:
-                image_filtered = cv2.filter2D(image[:,:,0], cv2.CV_32F, mask.astype(np.float32))
-                image_filtered = cv2.normalize(image_filtered, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-                law_result[index] = np.mean(abs(image_filtered))
+                image_filtered = cv2.filter2D(image[:,:,0], cv2.CV_32F, mask)
+                # image_filtered = cv2.normalize(image_filtered, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+                law_result[index] = np.mean(abs(image_filtered)) / 255
                 index += 1    
 
         return law_result
@@ -257,7 +257,8 @@ class FeatureExtract():
         self.image_prvs = self.image_next
 
         # Calculate magnitude and angle
-        mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1])
+        # mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1])
+        mag = np.sqrt(np.square(flow[...,0]) + np.square(flow[...,1])) 
         
         flow_result = np.zeros(5)
         flow_result[0] = np.amax(mag)
@@ -287,7 +288,7 @@ class FeatureExtract():
     def update_color(self, image):
         # Convert to BGR
         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-
+        
         # Get features for each window
         k = 0
         for i in self.H_points:

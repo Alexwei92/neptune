@@ -11,11 +11,14 @@ feature_config = {
     'TENSOR_HISTBIN': 15,   # number of histogram bins
 
     'LAW_MASK': [           # Law's masks
-        "L5L5",
         "L5E5",
         "L5S5",
+        "L5R5",
         "E5E5",
         "E5S5",
+        "E5R5",
         "S5S5",
+        "S5R5",
+        "R5R5",
     ],          
 }
