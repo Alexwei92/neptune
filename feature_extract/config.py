@@ -5,8 +5,7 @@ feature_config = {
     'SLIDE_OVERLAP': 0.0,   # overlap between two windows
     'SLIDE_FLAG': 1,        # flag=0 if provide the exact size, flag=1 if provide the number of windows
     
-    # 'HOUGH_ANGLES': 15,     # number of hough angles
-    'RADON_ANGLES': 15,     # number of radon angles
+    'HOUGH_ANGLES': 15,     # number of hough angles
 
     'TENSOR_BOXSIZE': 5,    # boxfilter window size
     'TENSOR_HISTBIN': 15,   # number of histogram bins
