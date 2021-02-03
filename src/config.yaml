@@ -40,7 +40,7 @@ train_params:
   result_only:                False # this will disable all trainings and only show results
 
   train_reg:                  True # enable train linear regression weights
-  preload_sample:             False # preload samples from file
+  preload_sample:             True # preload samples from file
 
   train_vae:                  False # enable train VAE model
   z_dim:                      10 # latent dimension

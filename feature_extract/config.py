@@ -20,5 +20,8 @@ feature_config = {
         "S5S5",
         "S5R5",
         "R5R5",
-    ],          
+    ],
+
+    'CMD_NPRVS': 5,       # number of previous commands
+    'CMD_DECAY': 0.8        # exponential time decaying
 }

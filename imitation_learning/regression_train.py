@@ -24,10 +24,12 @@ class RegTrain():
     '''
     Linear Regression Training Agent
     '''
-    def __init__(self, folder_path, image_size, cmd_index, preload=False):
-        self.feature_agent = FeatureExtract(feature_config, image_size, False)
+    def __init__(self, folder_path, image_size, cmd_index, preload=False, printout=False):
+        self.feature_agent = FeatureExtract(feature_config, image_size, printout)
         self.cmd_index = cmd_index
-        self.X = np.empty((0, self.feature_agent.get_size()+1), dtype=np.float32)
+        self.cmd_nprvs = feature_config['CMD_NPRVS']
+        self.cmd_decay = feature_config['CMD_DECAY']
+        self.X = np.empty((0, self.feature_agent.get_size()+self.cmd_nprvs+1), dtype=np.float32)
         self.y = np.empty((0,), dtype=np.float32)
 
         for subfolder in os.listdir(folder_path):
@@ -65,22 +67,35 @@ class RegTrain():
                 image_depth = cv2.imread(depth_file, cv2.IMREAD_UNCHANGED)
                 X[i,:] = self.feature_agent.step(image_color, image_depth)
                 i += 1
-    
             np.savetxt(file_path, X, delimiter=',')
-            
+        print('Load samples from {:s} successfully.'.format(folder_path))     
+
         X_extra, y = self.read_telemetry(folder_path, self.cmd_index)
-        X = np.concatenate((X, X_extra), axis=1)
-        print('Load samples from {:s} successfully.'.format(folder_path))
+        X = np.column_stack((X, X_extra))
         return X, y
 
     def read_telemetry(self, folder_path, index):
         # read telemetry csv
         telemetry_data = np.genfromtxt(os.path.join(folder_path, 'airsim.csv'), 
                     delimiter=',', skip_header=True, dtype=np.float32)
+        
         y = telemetry_data[:, index] # yaw_cmd
-        # yaw = np.reshape(telemetry_data[:, index-2], (-1,1)) # yaw
-        yawRate = np.reshape(telemetry_data[:, index-1], (-1,1)) # yaw rate
-        return yawRate, y
+        for k in range(len(y)):
+            if np.abs(y[k]) < 1e-3:
+                y[k] = 0.0
+
+        # Previous commands with time decaying
+        y_prvs = np.zeros((len(y), self.cmd_nprvs), dtype=np.float32)
+        for i in range(len(y)):
+            for j in range(self.cmd_nprvs):
+                if i > j:
+                    y_prvs[i,j] = y[i-(j+1)] * self.cmd_decay**(j+1)
+
+        # Yaw rate
+        yawRate = np.reshape(telemetry_data[:, index-1], (-1,1)) # yaw rate, assume it's left to the yaw cmd column
+        
+        X_extra = np.concatenate((y_prvs, yawRate), axis=1)
+        return X_extra, y
 
     def calculate_weight(self):
         weight, intercept, self.r2, self.rmse = calculate_regression(self.X, self.y)
