@@ -75,18 +75,17 @@ if __name__ == '__main__':
     if train_reg:
         print('======= Linear Regression Controller =========')
         image_size = eval(config['ctrl_params']['image_size'])
-        weight_filename = config['train_params']['reg_weight_filename']
+        preload_sample = config['train_params']['preload_sample']
         
         # Create the agent
-        reg_agent = RegTrain(dataset_dir, image_size=image_size, 
-                        cmd_index=cmd_index, preload=True)
+        reg_agent = RegTrain(dataset_dir, image_size, cmd_index, preload_sample)
 
-        # Train
+        # Train the model
         reg_agent.train()
         print('Trained linear regression model successfully.')
 
         # Save weight to file
-        reg_agent.save_weight(os.path.join(output_dir, weight_filename))
+        reg_agent.save_weight(os.path.join(output_dir, 'reg_weight.csv'))
 
     # 2) VAE
     if train_vae:

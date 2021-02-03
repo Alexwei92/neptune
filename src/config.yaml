@@ -37,25 +37,27 @@ train_params:
   output_dir:                 'my_outputs/peng/river/iter0' # save output to this path
   
   cmd_index:                  6 # column index of yaw command in .csv file
-  
-  train_reg:                  True # enable train linear regression weights
-  train_vae:                  False # enable train VAE model
-  train_latent:               False  # enable train latent controller network model
   result_only:                False # this will disable all trainings and only show results
 
+  train_reg:                  True # enable train linear regression weights
+  preload_sample:             False # preload samples from file
+
+  train_vae:                  False # enable train VAE model
   z_dim:                      10 # latent dimension
   img_resize:                 (64, 64) # resize image before VAE, right now only support (64, 64)
-
-  reg_weight_filename:        'reg_weight.csv' # linear regression weight file name
-
   vae_n_epochs:               100 # number of epochs
   vae_batch_size:             32 # batch size
   vae_checkpoint_filename:    'vae_checkpoint.pt' # checkpoint file name
   vae_checkpoint_preload:     True # preload a VAE checkpoint
   vae_model_filename:         'vae_model.pt' # save VAE model to this file name
 
+  train_latent:               False  # enable train latent controller network model
   latent_n_epochs:            400 # number of epochs
   latent_batch_size:          32 # batch size
   latent_checkpoint_filename: 'latent_checkpoint.pt' # latent controller checkpoint file name
   latent_checkpoint_preload:  True # preload a latent controller checkpoint
   latent_model_filename:      'latent_model.pt' # save latent controller model to this file name
+
+
+
+

@@ -7,15 +7,14 @@ class RegCtrl():
     '''
     Linear Regression Controller
     '''
-    def __init__(self, **kwargs):
-        weight_file_path = kwargs.get('weight_file_path')
-        image_size = kwargs.get('image_size')
+    def __init__(self, image_size, weight_file_path):
         self.load_weight_from_file(weight_file_path)
         self.feature_agent = FeatureExtract(feature_config, image_size)
         print('The linear regression controller is initialized.')
 
     def load_weight_from_file(self, file_path):
         self.weight = np.genfromtxt(file_path, delimiter=',', dtype=np.float32)
+        print('Load weight from: ', file_path)
 
     def predict(self, image_color, image_depth, yawRate):
         X = self.feature_agent.step(image_color, image_depth)

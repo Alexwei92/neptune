@@ -23,7 +23,7 @@ class FeatureExtract():
         self.H_points, self.H_size = self.sliding_window(image_height, split_size[0], self.config['SLIDE_OVERLAP'], self.config['SLIDE_FLAG']) 
         self.W_points, self.W_size = self.sliding_window(image_width, split_size[1], self.config['SLIDE_OVERLAP'], self.config['SLIDE_FLAG'])
         
-        # Hough Init
+        # Hough Init'
         self.image_gpu = cv2.cuda_GpuMat()
         self.image_canny = cv2.cuda_GpuMat()
         self.cannyFilter = cv2.cuda.createCannyEdgeDetector(low_thresh=5, high_thresh=20, apperture_size=3)
@@ -48,7 +48,7 @@ class FeatureExtract():
             ('hough',            self.config['HOUGH_ANGLES'],     self.hough_feature),
             ('structure_tensor', self.config['TENSOR_HISTBIN'],   self.tensor_feature),
             ('law_mask',         len(self.config['LAW_MASK']),  self.law_feature),
-            ('optical_flow',     5,                               self.flow_feature),
+            ('optical_flow',     3,                               self.flow_feature),
         ]
 
         size_each_window = 0
@@ -108,6 +108,7 @@ class FeatureExtract():
 
         self.image_gpu.upload(image)
         self.image_canny = self.cannyFilter.detect(self.image_gpu)
+        # print(self.image_canny.size)
         self.houghResult_gpu = self.houghFilter.detect(self.image_canny)
         houghLines = self.houghResult_gpu.download()
 
@@ -135,10 +136,13 @@ class FeatureExtract():
         Sxy = cv2.multiply(Sx, Sy)
 
         # Apply a box filter
-        filter_size = self.config['TENSOR_BOXSIZE']
-        Sxx = cv2.boxFilter(Sxx, cv2.CV_32F, (filter_size, filter_size))
-        Syy = cv2.boxFilter(Syy, cv2.CV_32F, (filter_size, filter_size))
-        Sxy = cv2.boxFilter(Sxy, cv2.CV_32F, (filter_size, filter_size))
+        filter_size = self.config['TENSOR_FILTSIZE']
+        # Sxx = cv2.boxFilter(Sxx, cv2.CV_32F, (filter_size, filter_size))
+        # Syy = cv2.boxFilter(Syy, cv2.CV_32F, (filter_size, filter_size))
+        # Sxy = cv2.boxFilter(Sxy, cv2.CV_32F, (filter_size, filter_size))
+        Sxx = cv2.GaussianBlur(Sxx, (filter_size, filter_size), 0)
+        Syy = cv2.GaussianBlur(Syy, (filter_size, filter_size), 0)
+        Sxy = cv2.GaussianBlur(Sxy, (filter_size, filter_size), 0)
 
         # Eigenvalue
         tmp1 = Sxx + Syy
@@ -151,11 +155,10 @@ class FeatureExtract():
 
         # Coherency
         coherency = cv2.divide(lambda1 - lambda2, lambda1 + lambda2)
-        coherency = np.fmin(coherency, 1.0)
-        coherency = np.fmax(coherency, 0.0)
+        coherency = np.fmax(np.fmin(coherency, 1.0), 0.0)
 
         # Orientation angle
-        orientation_Angle = cv2.phase(Sxx-Syy, 2.0*Sxy, angleInDegrees = True)
+        orientation_Angle = cv2.phase(Syy-Sxx, 2.0*Sxy, angleInDegrees = True)
         orientation_Angle = 0.5 * orientation_Angle
 
         # Calculate Histogram
@@ -164,10 +167,11 @@ class FeatureExtract():
         index = 0
         histbin = self.config['TENSOR_HISTBIN']
         tensor_result = np.zeros(histbin)
+        scale = 255 # a scale to normalize the output
         for k in np.linspace(0.0, 180.0, histbin, endpoint=False):
             tmp1 = (orientation_Angle >= k) & (orientation_Angle < k + 180./histbin)
             if tmp1.any():
-                tensor_result[index] = np.mean(coherency[tmp1])
+                tensor_result[index] = np.sum(coherency[tmp1]) / scale
             index += 1
 
         return tensor_result
@@ -213,17 +217,18 @@ class FeatureExtract():
             # Apply Law's masks
             law_result = np.zeros(len(self.law_masks))
             index = 0
+            scale = 255 # a scale to normalize the output
             for name, mask in self.law_masks:
                 if name == "L5L5":
                     for j in range(0,3):
                         image_filtered = cv2.filter2D(image[:,:,j], cv2.CV_32F, mask)
                         # image_filtered = cv2.normalize(image_filtered, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-                        law_result[index] = np.mean(abs(image_filtered)) / 255
+                        law_result[index] = np.mean(abs(image_filtered)) / scale
                         index += 1            
                 else:
                     image_filtered = cv2.filter2D(image[:,:,0], cv2.CV_32F, mask)
                     # image_filtered = cv2.normalize(image_filtered, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-                    law_result[index] = np.mean(abs(image_filtered)) / 255
+                    law_result[index] = np.mean(abs(image_filtered)) / scale
                     index += 1    
         else:
             # if image is in grayscale
@@ -232,7 +237,7 @@ class FeatureExtract():
             for name, mask in self.law_masks:
                 image_filtered = cv2.filter2D(image[:,:,0], cv2.CV_32F, mask)
                 # image_filtered = cv2.normalize(image_filtered, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-                law_result[index] = np.mean(abs(image_filtered)) / 255
+                law_result[index] = np.mean(abs(image_filtered)) / scale
                 index += 1    
 
         return law_result
@@ -253,19 +258,16 @@ class FeatureExtract():
         # Call OF function
         flow_gpu = self.nvof.calc(self.image_prvs, self.image_next, None)
         flow = flow_gpu.download()
-
         self.image_prvs = self.image_next
 
         # Calculate magnitude and angle
         # mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1])
         mag = np.sqrt(np.square(flow[...,0]) + np.square(flow[...,1])) 
         
-        flow_result = np.zeros(5)
+        flow_result = np.zeros(3)
         flow_result[0] = np.amax(mag)
         flow_result[1] = np.amin(mag)
-        flow_result[2] = (np.mean(flow[...,0]) + np.mean(flow[...,1])) / 2.0
-        flow_result[3] = np.std(flow[...,0])
-        flow_result[4] = np.std(flow[...,1])
+        flow_result[2] = np.mean(mag) * 1E3
 
         return flow_result
 

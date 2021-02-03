@@ -70,9 +70,7 @@ if __name__ == '__main__':
     if agent_type == 'reg':
         # Linear regression controller
         reg_weight_path = os.path.join(setup_path.parent_dir, model_path, 'reg_weight.csv')
-        controller_agent = RegCtrl(
-                            image_size=image_size,
-                            weight_file_path=reg_weight_path)
+        controller_agent = RegCtrl(image_size, reg_weight_path)
 
     elif agent_type == 'latent':
         # latent controller
