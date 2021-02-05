@@ -23,7 +23,7 @@ if __name__ == '__main__':
         file = open('config.yaml', 'r')
         config = yaml.safe_load(file)
         file.close()
-    except IOError as error:
+    except Exception as error:
         print_msg(str(error), type=3)
         exit()
 
@@ -54,18 +54,8 @@ if __name__ == '__main__':
     plot_cmd = config['visualize_params']['plot_cmd']
     plot_2Dpos = config['visualize_params']['plot_2Dpos']
 
-    # Visualize Init
-    disp_handle = Display(image_size, max_yawRate, loop_rate, plot_heading, plot_cmd)
-    
-    if plot_2Dpos:
-        fig, ax = plt.subplots()
-        pos_handle = DynamicPlot(fig, ax, max_width=120*loop_rate)
-
     # Controller Init
-    controller = Controller(client=client,
-                            forward_speed=forward_speed, 
-                            height=height, 
-                            max_yawRate=max_yawRate)
+    controller = Controller(client, forward_speed, height, max_yawRate)
 
     if agent_type == 'reg':
         # Linear regression controller
@@ -83,24 +73,29 @@ if __name__ == '__main__':
                             latent_model_path=latent_model_path,
                             z_dim=z_dim,
                             image_resize=img_resize)
-    else:
-        # agent_type = 'none'
+    
+    elif agent_type == 'none':
+        # manual control
         dagger_type = 'none'
-        print_msg('No agent controller currently available.')
+        print_msg('No agent controller enabled.')
+    
+    else:
+        print_msg('Unknow agent_type: ' + agent_type, type=3)
+        exit()
 
     # State Machine Init
-    state_machine = StateMachine(
-        agent_type=agent_type,
-        dagger_type=dagger_type,
-        train_mode=train_mode,
-    )
+    state_machine = StateMachine(agent_type, train_mode)
+
+    # Visualize Init
+    disp_handle = Display(image_size, max_yawRate, loop_rate, plot_heading, plot_cmd) 
+
+    if plot_2Dpos:
+        fig, ax = plt.subplots()
+        pos_handle = DynamicPlot(fig, ax, max_width=120*loop_rate)
 
     # Data logger Init
-    # if train_mode == 'test':
-    #     save_data = False
-
-    data_logger = Logger(root_dir=os.path.join(setup_path.parent_dir, output_path),
-                        save_data=save_data)
+    if save_data:
+        data_logger = Logger(os.path.join(setup_path.parent_dir, output_path))
 
     '''
     Main Code
@@ -123,19 +118,13 @@ if __name__ == '__main__':
 
         print_msg("Ready to fly!", type=1)
         while True:
-            now = time.time() # loop start time
+            start_time = time.perf_counter() # loop start time
 
             # Check collision
-            state_machine.check_collision(client.simGetCollisionInfo().has_collided)
             if client.simGetCollisionInfo().has_collided:
-                client.reset()
-                client.enableApiControl(True)
-                client.armDisarm(True)
-                client.simSetVehiclePose(add_offset_to_pose(random.choice(initial_pose)), ignore_collison=True)
+                reset_environment(client, state_machine, random.choice(initial_pose), controller_agent)
                 if save_data:
                     data_logger.crash_count += 1
-                if agent_type == 'reg':
-                    controller_agent.reset_prvs()
 
             # Get Multirotor estimated states
             drone_state = client.getMultirotorState()
@@ -149,17 +138,22 @@ if __name__ == '__main__':
             # Update controller type from RC/joystick
             state_machine.set_controller_type(joy.get_input(type_axis))
 
-            # Get FPV images
-            image_color, image_depth = get_camera_images(client, image_size)
+            # Get images
+            camera_response = client.simGetImages([
+                # uncompressed RGB array bytes 
+                airsim.ImageRequest('0', airsim.ImageType.Scene, pixels_as_float=False, compress=False),
+                # floating point uncompressed image
+                airsim.ImageRequest('1', airsim.ImageType.DepthVis, pixels_as_float=True, compress=False)])
+            image_color, image_depth = get_camera_images(camera_response, image_size)
 
             # for regression controller:
             if state_machine.is_expert and agent_type == 'reg':
                 controller_agent.reset_prvs()
 
             # Data logging
-            if state_machine.get_flight_mode() == 'mission' and save_data:
+            if save_data and state_machine.get_flight_mode() == 'mission':
                 if (dagger_type == 'hg') and (not state_machine.is_expert):
-                    # in Hg-dagger, only log data when in expert mode
+                    # in Hg-dagger, only log data in manual mode
                     pass
                 else:
                     data_logger.save_image('color', image_color)
@@ -182,7 +176,7 @@ if __name__ == '__main__':
                     agent_cmd = controller_agent.predict(image_color)
                     controller.step(agent_cmd, 'mission')
                 else:
-                    raise Exception('***You must define an agent type!')
+                    raise Exception('You must define an agent type!')
 
             # Update plots
             if train_mode == 'test':
@@ -200,9 +194,9 @@ if __name__ == '__main__':
                     else:
                         disp_handle.update(image_color, agent_cmd, False)
                 else:
-                    raise Exception('***Unknown Dagger type!')
+                    raise Exception('Unknown Dagger type: ' + dagger_type)
             else:
-                raise Exception('***Unknown Train mode!')
+                raise Exception('Unknown train_mode: ' + train_mode)
 
             if plot_2Dpos:
                 pos_handle.update(drone_state.kinematics_estimated.position.x_val, 
@@ -212,20 +206,15 @@ if __name__ == '__main__':
             key = cv2.waitKey(1) & 0xFF
             if (key == 27 or key == ord('q')):
                 break
-
+            
+            # Manual crash
             if (key==ord('k')):
-                state_machine.check_collision(True)
-                client.reset()
-                client.enableApiControl(True)
-                client.armDisarm(True)
-                client.simSetVehiclePose(add_offset_to_pose(random.choice(initial_pose)), ignore_collison=True)
+                reset_environment(client, state_machine, random.choice(initial_pose), controller_agent)
                 if save_data:
                     data_logger.crash_count += 1
-                if agent_type == 'reg':
-                    controller_agent.reset_prvs()
 
             # Ensure that the loop is running at a fixed rate
-            elapsed_time = time.time() - now
+            elapsed_time = time.perf_counter() - start_time
             if (1./loop_rate - elapsed_time) < 0.0:
                 print_msg('The main loop rate {:.2f} Hz is below {:.2f} Hz, consider to reduce the rate!'.format(1./elapsed_time, loop_rate), type=2)
             else:
@@ -240,7 +229,8 @@ if __name__ == '__main__':
         disp_handle.is_active = False
         disp_handle.clean()
         joy.clean()
-        data_logger.clean()
+        if save_data:
+            data_logger.clean()
         client.armDisarm(False)
         client.enableApiControl(False)
         client.reset()

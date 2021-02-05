@@ -10,11 +10,17 @@ class Joystick():
         pygame.init()
         pygame.joystick.init()
         self.joystick = pygame.joystick.Joystick(joystick_id)
+        print('Load {:s} successfully.'.format(self.joystick.get_name()))
+        self.numaxes = self.joystick.get_numaxes()
         self.joystick.init()
 
     def get_input(self, axis):
         pygame.event.pump()
-        return self.joystick.get_axis(axis)
+        if axis > self.numaxes-1:
+            self.clean()
+            raise Exception('Exceed the number of axes on the joystick.')
+        else:
+            return self.joystick.get_axis(axis)
 
     def clean(self):
         pygame.joystick.quit()

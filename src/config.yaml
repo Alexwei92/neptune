@@ -1,12 +1,12 @@
 # Simulation parameters
 sim_params:
   loop_rate:                  10.0 # Hz
-  output_path:                'my_datasets/peng/river/iter2' # save data to this path
+  output_path:                'my_datasets/peng/river/iter3' # save data to this path
   save_data:                  False # {True, False}
 
   train_mode:                 'test' # {'train', 'test'}
   agent_type:                 'reg' # {'none', 'reg', 'latent'}
-  dagger_type:                'none' # {'none', 'vanilla', 'hg'}
+  dagger_type:                'hg' # {'none', 'vanilla', 'hg'}
 
   initial_pose:               (0,0,5,0),(120,143,5,0),(56,66,5,0),(10,49,5,0),(45,112,5,0)         
                               # a set of (pos_x, pos_y, pos_z, yaw) 
@@ -18,7 +18,7 @@ ctrl_params:
   forward_speed:              2.0  # m/s
   height:                     5.0  # m
   image_size:                 (480, 640) # Width x Height 
-  model_path:                 'my_outputs/peng/river/iter1' # model file path
+  model_path:                 'my_outputs/peng/river/iter0' # model file path
 
 # RC/Joystick parameters
 rc_params:
