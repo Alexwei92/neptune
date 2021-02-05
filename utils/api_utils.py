@@ -8,12 +8,12 @@ import numpy as np
 import airsim
 from utils import plot_with_cmd, plot_with_heading, plot_without_heading
 
-# Generate random pose
-def generate_random_pose(initial_pose):
-    position = airsim.Vector3r(1*np.random.rand()+initial_pose[0], 1*np.random.rand()+initial_pose[1], -initial_pose[2])
-    orientation = airsim.to_quaternion(0, 0, np.pi*np.random.rand()+initial_pose[3])
-    intial_pose = airsim.Pose(position, orientation)
-    return intial_pose
+# Add random offset to pose
+def add_offset_to_pose(pose, pos_offset=1, yaw_offset=np.pi*2):
+    position = airsim.Vector3r(pos_offset*np.random.rand()+pose[0], pos_offset*np.random.rand()+pose[1], -pose[2])
+    orientation = airsim.to_quaternion(0, 0, yaw_offset*np.random.rand()+pose[3])
+    new_pose = airsim.Pose(position, orientation)
+    return new_pose
 
 # Get yaw from orientation
 def get_yaw_from_orientation(orientation):
@@ -39,6 +39,19 @@ def get_camera_images(client, image_size):
             image_depth = (image_depth * 255).astype(np.uint8)
     return image_color, image_depth
 
+# Colored print out
+def print_msg(msg, type=0):
+    # type = {0:Default, 1:Status, 2:Warning, 3:Error}
+    if type == 1:
+        print('\033[37;42m' + msg + '\033[m')
+    elif type == 2:
+        print('\033[33m' + '[WARNING] ' + msg + '\033[m')
+    elif type == 3:
+        print('\033[31m' + '[ERROR] ' + msg + '\033[m')
+    else:
+        print(msg)
+
+####
 class StateMachine():
     '''
     A high-level state machine
@@ -130,58 +143,49 @@ class Logger():
 
 class Display():
     '''
-    For displaying on the window
+    For displaying the window(s)
     '''
     def __init__(self, image_size, max_yawRate, loop_rate=15, plot_heading=False, plot_cmd=False):
         self.is_active = True
+        self.is_expert = True
         self.image = np.zeros((image_size[0], image_size[1], 4))
         self.max_yawRate = max_yawRate
-        self.loop_rate = loop_rate
+        self.dt = 1./loop_rate
         self.plot_heading = plot_heading
         self.plot_cmd = plot_cmd
+        cv2.namedWindow('disp', cv2.WINDOW_NORMAL)
 
         self.heading = 0.0
-        self.t_old = time.time()
         self.cmd = 0.0
-        self.win_name = 'disp'
-        self.is_expert = True
-        cv2.namedWindow(self.win_name, cv2.WINDOW_NORMAL)
-
-    def update_heading(self, cmd):
-        t_new = time.time()
-        self.heading = cmd * self.max_yawRate * (t_new - self.t_old)
-        self.t_old = t_new
-
-    def update_cmd(self, cmd):
-        self.cmd = cmd
-
-    def update_image(self, image):
-        self.image = image
+        self.t_old = time.perf_counter()      
 
     def update(self, image, cmd, is_expert):
-        self.update_image(image)
-        if self.plot_heading:
-            self.update_heading(cmd)
-        if self.plot_cmd:
-            self.update_cmd(cmd)
+        self.image = image
         self.is_expert = is_expert
+        if self.plot_heading:
+            t_new = time.perf_counter()
+            self.heading = cmd * self.max_yawRate * (t_new - self.t_old)
+            # print(t_new - self.t_old)
+            self.t_old = t_new
+        if self.plot_cmd:
+            self.cmd = cmd
 
     def run(self):
-        t_old = time.time()
         while self.is_active:
-            start_time = time.time()
+            start_time = time.perf_counter()
             if self.plot_heading:
-                plot_with_heading(self.win_name, self.image, self.heading, self.is_expert) 
+                plot_with_heading('disp', self.image, self.heading, self.is_expert) 
             elif self.plot_cmd:
-                plot_with_cmd(self.win_name, self.image, self.cmd/2.0, self.is_expert)
+                plot_with_cmd('disp', self.image, self.cmd/2.0, self.is_expert)
             else:
-                plot_without_heading(self.win_name, self.image)
+                plot_without_heading('disp', self.image)
 
-            elapsed_time = time.time() - start_time
-            if (1./self.loop_rate - elapsed_time) < 0.0:
-                print('[WARNING] The visualize loop rate is too high, consider to reduce the rate!')
+            elapsed_time = time.perf_counter() - start_time
+            if elapsed_time > self.dt:
+                # this should never happen
+                print_msg('The visualize loop rate is too high, consider to reduce the rate!', type=2)
             else:
-                time.sleep(1./self.loop_rate - elapsed_time)
+                time.sleep(self.dt - elapsed_time) 
         
         self.clean()
     

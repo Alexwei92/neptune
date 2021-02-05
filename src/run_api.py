@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import yaml
 import threading
+import random
 
 import airsim
 from utils import *
@@ -18,12 +19,13 @@ if __name__ == '__main__':
     client.confirmConnection()
 
     # Read YAML configurations
-    with open('config.yaml', 'r') as file:
-        try:
-            config = yaml.safe_load(file)
-        except yaml.YAMLError as e:
-            print(e)
-            raise Exception
+    try:
+        file = open('config.yaml', 'r')
+        config = yaml.safe_load(file)
+        file.close()
+    except IOError as error:
+        print_msg(str(error), type=3)
+        exit()
 
     # Simulation settings
     loop_rate = config['sim_params']['loop_rate']
@@ -53,12 +55,7 @@ if __name__ == '__main__':
     plot_2Dpos = config['visualize_params']['plot_2Dpos']
 
     # Visualize Init
-    disp_handle = Display(
-        image_size=image_size, 
-        max_yawRate=max_yawRate,
-        loop_rate=loop_rate,
-        plot_heading=plot_heading,
-        plot_cmd=plot_cmd)
+    disp_handle = Display(image_size, max_yawRate, loop_rate, plot_heading, plot_cmd)
     
     if plot_2Dpos:
         fig, ax = plt.subplots()
@@ -76,7 +73,7 @@ if __name__ == '__main__':
         controller_agent = RegCtrl(image_size, reg_weight_path)
 
     elif agent_type == 'latent':
-        # latent controller
+        # Latent NN controller
         z_dim = config['train_params']['z_dim']
         img_resize = eval(config['train_params']['img_resize'])
         vae_model_path = os.path.join(setup_path.parent_dir, model_path, 'vae_model.pt')
@@ -89,7 +86,7 @@ if __name__ == '__main__':
     else:
         # agent_type = 'none'
         dagger_type = 'none'
-        print('No agent controller currently available.')
+        print_msg('No agent controller currently available.')
 
     # State Machine Init
     state_machine = StateMachine(
@@ -114,21 +111,17 @@ if __name__ == '__main__':
         client.armDisarm(True)
 
         # Take-off
-        print("Taking off")
         client.takeoffAsync()
 
         # Initial pose
-        # init_position = airsim.Vector3r(initial_pose[0], initial_pose[1], -initial_pose[2])
-        # init_orientation = airsim.to_quaternion(0, 0, initial_pose[3])
-        # client.simSetVehiclePose(airsim.Pose(init_position, init_orientation), ignore_collison=True)
-        client.simSetVehiclePose(generate_random_pose(initial_pose), ignore_collison=True)
+        client.simSetVehiclePose(add_offset_to_pose(random.choice(initial_pose)), ignore_collison=True)
         time.sleep(0.5)
 
         # Multi-threading process for display
         disp_thread = threading.Thread(target=disp_handle.run)
         disp_thread.start()
 
-        print("Ready to fly!")
+        print_msg("Ready to fly!", type=1)
         while True:
             now = time.time() # loop start time
 
@@ -138,7 +131,7 @@ if __name__ == '__main__':
                 client.reset()
                 client.enableApiControl(True)
                 client.armDisarm(True)
-                client.simSetVehiclePose(generate_random_pose(initial_pose), ignore_collison=True)
+                client.simSetVehiclePose(add_offset_to_pose(random.choice(initial_pose)), ignore_collison=True)
                 if save_data:
                     data_logger.crash_count += 1
                 if agent_type == 'reg':
@@ -220,12 +213,12 @@ if __name__ == '__main__':
             if (key == 27 or key == ord('q')):
                 break
 
-            if (key==ord('c')):
+            if (key==ord('k')):
                 state_machine.check_collision(True)
                 client.reset()
                 client.enableApiControl(True)
                 client.armDisarm(True)
-                client.simSetVehiclePose(generate_random_pose(initial_pose), ignore_collison=True)
+                client.simSetVehiclePose(add_offset_to_pose(random.choice(initial_pose)), ignore_collison=True)
                 if save_data:
                     data_logger.crash_count += 1
                 if agent_type == 'reg':
@@ -234,13 +227,12 @@ if __name__ == '__main__':
             # Ensure that the loop is running at a fixed rate
             elapsed_time = time.time() - now
             if (1./loop_rate - elapsed_time) < 0.0:
-                print('[WARNING] The main loop rate is too high, consider to reduce the rate!')
-                print('Main loop rate: {:.2f} Hz'.format(1./elapsed_time))
+                print_msg('The main loop rate {:.2f} Hz is below {:.2f} Hz, consider to reduce the rate!'.format(1./elapsed_time, loop_rate), type=2)
             else:
                 time.sleep(1./loop_rate - elapsed_time)
 
-    except Exception as e:
-        print(e)
+    except Exception as error:
+        print_msg(str(error), type=3)
 
     finally:
         print('===============================')

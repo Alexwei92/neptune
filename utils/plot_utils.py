@@ -45,7 +45,7 @@ def plot_with_cmd(win_name, image, input, is_expert):
         color = (255,0,0) # blue
     cv2.rectangle(image, (int(center_pos-bar_width/2),int(h1*height)), (int(center_pos+bar_width/2),int(h2*height)), color, -1)
     # plot center line
-    cv2.line(image, (int(0.5*width),int(h1*height)), (int(0.5*width),int(h2*height)), (255,255,255), 1) # white
+    cv2.line(image, (int(0.5*width),int(h1*height)), (int(0.5*width),int(h2*height)), (255,255,255), 2) # white
     cv2.imshow(win_name, image) 
 
 # Plot image with heading
@@ -65,7 +65,7 @@ def plot_with_heading(win_name, image, input, is_expert):
         color = (0,0,255) # red
     else:
         color = (255,0,0) # blue
-    cv2.line(image, (int(center_pos),int(0)), (int(center_pos),int(height)), color, 1)
+    cv2.line(image, (int(center_pos),int(0)), (int(center_pos),int(height)), color, 2)
     # plot center line
     cv2.line(image, (int(0.5*width),int(0)), (int(0.5*width),int(height)), (255,255,255), 1) # white
     cv2.imshow(win_name, image) 
