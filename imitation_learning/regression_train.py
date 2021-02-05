@@ -5,6 +5,8 @@ import cv2
 
 from feature_extract import *
 from sklearn.linear_model import LinearRegression
+from sklearn.svm import SVR
+from scipy.optimize import curve_fit
 
 def calculate_regression(X, y, disp_summary=False):
     print('\n*** Training Results ***')
@@ -19,6 +21,23 @@ def calculate_regression(X, y, disp_summary=False):
     print('Number of weights = {:} '.format(len(reg.coef_)+1))
     print('\n')
     return reg.coef_, reg.intercept_, r_square, rmse
+
+def sigmoid_function(X, w):
+    print(w.shape)
+    print(X.shape)
+    tmp = np.dot(w[:2070], X) + w[2071]
+    print(tmp.shape)
+    y_pred = w[2072] / (1.0 + np.exp(-w[2073]*tmp)) + w[2074]
+    return y_pred
+
+def calculate_nonlinear(X, y):
+    a = 0
+    b = 1
+    c = 1
+    d = 1
+    popt, pcov  = curve_fit(sigmoid_function, xdata=X, ydata=y, p0=np.ones((2074,)))
+
+
 
 class RegTrain():
     '''
@@ -100,6 +119,7 @@ class RegTrain():
     def calculate_weight(self):
         weight, intercept, self.r2, self.rmse = calculate_regression(self.X, self.y)
         self.weight = np.append(intercept, weight)
+        calculate_nonlinear(self.X, self.y)
 
     def train(self):
         self.calculate_weight()

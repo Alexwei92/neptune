@@ -49,13 +49,16 @@ if __name__ == '__main__':
 
     # Visualize settings
     plot_heading = config['visualize_params']['plot_heading']
+    plot_cmd = config['visualize_params']['plot_cmd']
     plot_2Dpos = config['visualize_params']['plot_2Dpos']
 
     # Visualize Init
     disp_handle = Display(
         image_size=image_size, 
+        max_yawRate=max_yawRate,
         loop_rate=loop_rate,
-        plot_heading=plot_heading)
+        plot_heading=plot_heading,
+        plot_cmd=plot_cmd)
     
     if plot_2Dpos:
         fig, ax = plt.subplots()
@@ -96,8 +99,8 @@ if __name__ == '__main__':
     )
 
     # Data logger Init
-    if train_mode == 'test':
-        save_data = False
+    # if train_mode == 'test':
+    #     save_data = False
 
     data_logger = Logger(root_dir=os.path.join(setup_path.parent_dir, output_path),
                         save_data=save_data)
@@ -115,9 +118,10 @@ if __name__ == '__main__':
         client.takeoffAsync()
 
         # Initial pose
-        init_position = airsim.Vector3r(initial_pose[0], initial_pose[1], -initial_pose[2])
-        init_orientation = airsim.to_quaternion(0, 0, initial_pose[3])
-        client.simSetVehiclePose(airsim.Pose(init_position, init_orientation), ignore_collison=True)
+        # init_position = airsim.Vector3r(initial_pose[0], initial_pose[1], -initial_pose[2])
+        # init_orientation = airsim.to_quaternion(0, 0, initial_pose[3])
+        # client.simSetVehiclePose(airsim.Pose(init_position, init_orientation), ignore_collison=True)
+        client.simSetVehiclePose(generate_random_pose(initial_pose), ignore_collison=True)
         time.sleep(0.5)
 
         # Multi-threading process for display
@@ -137,10 +141,12 @@ if __name__ == '__main__':
                 client.simSetVehiclePose(generate_random_pose(initial_pose), ignore_collison=True)
                 if save_data:
                     data_logger.crash_count += 1
+                if agent_type == 'reg':
+                    controller_agent.reset_prvs()
 
             # Get Multirotor estimated states
             drone_state = client.getMultirotorState()
-            
+
             # Update pilot yaw command from RC/joystick
             pilot_cmd = joy.get_input(yaw_axis)
 
@@ -153,9 +159,14 @@ if __name__ == '__main__':
             # Get FPV images
             image_color, image_depth = get_camera_images(client, image_size)
 
+            # for regression controller:
+            if state_machine.is_expert and agent_type == 'reg':
+                controller_agent.reset_prvs()
+
             # Data logging
             if state_machine.get_flight_mode() == 'mission' and save_data:
                 if (dagger_type == 'hg') and (not state_machine.is_expert):
+                    # in Hg-dagger, only log data when in expert mode
                     pass
                 else:
                     data_logger.save_image('color', image_color)
@@ -208,6 +219,17 @@ if __name__ == '__main__':
             key = cv2.waitKey(1) & 0xFF
             if (key == 27 or key == ord('q')):
                 break
+
+            if (key==ord('c')):
+                state_machine.check_collision(True)
+                client.reset()
+                client.enableApiControl(True)
+                client.armDisarm(True)
+                client.simSetVehiclePose(generate_random_pose(initial_pose), ignore_collison=True)
+                if save_data:
+                    data_logger.crash_count += 1
+                if agent_type == 'reg':
+                    controller_agent.reset_prvs()
 
             # Ensure that the loop is running at a fixed rate
             elapsed_time = time.time() - now

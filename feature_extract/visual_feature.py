@@ -116,7 +116,7 @@ class FeatureExtract():
         if houghLines is not None:
             for i in range(0, len(houghLines)):
                 thetaIndex = int(houghLines[i][0][1] / np.pi/16)
-                hough_result[thetaIndex] += 1
+                hough_result[thetaIndex] += 1/32
         
         return hough_result
 

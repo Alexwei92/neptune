@@ -1,14 +1,20 @@
 # Simulation parameters
 sim_params:
   loop_rate:                  10.0 # Hz
-  output_path:                'my_datasets/peng/test/iter0' # save data to this path
+  output_path:                'my_datasets/peng/river/iter2' # save data to this path
   save_data:                  False # {True, False}
 
-  agent_type:                 'latent' # {'none', 'reg', 'latent'}
+  agent_type:                 'reg' # {'none', 'reg', 'latent'}
   dagger_type:                'none' # {'none', 'vanilla', 'hg'}
   train_mode:                 'test' # {'train', 'test'}
 
-  initial_pose:               (115,181,5,0) # {pos_x, pos_y, pos_z, yaw} e.g. (115,181,5,0) in nh
+  initial_pose:               (120,143,5,0) # {pos_x, pos_y, pos_z, yaw} e.g. (115,181,5,0) in nh
+                              # [120,143,5,0]
+                              # [56,66,5,0]
+                              # [10,49,5,0]
+                              # [45,112,5,0]
+                              # [0,0,5,0]
+                                
 
 # Controller parameters
 ctrl_params:
@@ -16,7 +22,7 @@ ctrl_params:
   forward_speed:              2.0  # m/s
   height:                     5.0  # m
   image_size:                 (480, 640) # Width x Height 
-  model_path:                 'my_outputs/peng/test/iter1' # model file path
+  model_path:                 'my_outputs/peng/river/iter1' # model file path
 
 # RC/Joystick parameters
 rc_params:
@@ -29,7 +35,8 @@ rc_params:
 # Visualize parameters
 visualize_params:
   plot_2Dpos:                 False # plot a 2D trajectory in a new window
-  plot_heading:               True # plot a heading bar in the current window
+  plot_heading:               True # plot heading in the current window
+  plot_cmd:                   False # plot cmd in the current window
 
 # Training parameters
 train_params:

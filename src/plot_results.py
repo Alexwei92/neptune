@@ -18,7 +18,7 @@ def plot_one_trail(pos_x, pos_y, is_crash, color='b'):
 
 if __name__ == '__main__':
 
-    folder_path = '/home/lab/Documents/Peng/neptune/my_datasets/peng/test/tmp'
+    folder_path = '/home/lab/Documents/Peng/neptune/my_datasets/peng/river/iter2'
     total_N = 0
     for subfolder in os.listdir(folder_path):
         file_path = os.path.join(folder_path, subfolder, 'airsim.csv')
@@ -27,10 +27,14 @@ if __name__ == '__main__':
         crash_count = 0
         while True:
             tmp = (data[:,-2] == crash_count)
-            if crash_count > 0:
-                plot_one_trail(data[tmp,1], data[tmp,2], True)
+            # if crash_count > 0:
+            #     plot_one_trail(data[tmp,1], data[tmp,2], True, 'b')
+            # else:
+            #     plot_one_trail(data[tmp,1], data[tmp,2], False, 'k')
+            if subfolder == '2021_Feb_04_07_17_29':
+                plot_one_trail(data[tmp,1], data[tmp,2], False, 'k')
             else:
-                plot_one_trail(data[tmp,1], data[tmp,2], False)
+                plot_one_trail(data[tmp,1], data[tmp,2], True, 'b')
             
             N += np.sum(tmp)
             if N == len(data):
@@ -41,8 +45,8 @@ if __name__ == '__main__':
         total_N += N
     
     print('Total data points: ',  total_N)
-    plt.xticks([])
-    plt.yticks([])
+    # plt.xticks([])
+    # plt.yticks([])
     plt.xlabel('x')
     plt.ylabel('y')
     plt.axis('image')

@@ -6,11 +6,11 @@ import csv
 import numpy as np
 
 import airsim
-from utils import plot_with_heading, plot_without_heading
+from utils import plot_with_cmd, plot_with_heading, plot_without_heading
 
 # Generate random pose
 def generate_random_pose(initial_pose):
-    position = airsim.Vector3r(2.5*np.random.rand()+initial_pose[0], 2.5*np.random.rand()+initial_pose[1], -initial_pose[2])
+    position = airsim.Vector3r(1*np.random.rand()+initial_pose[0], 1*np.random.rand()+initial_pose[1], -initial_pose[2])
     orientation = airsim.to_quaternion(0, 0, np.pi*np.random.rand()+initial_pose[3])
     intial_pose = airsim.Pose(position, orientation)
     return intial_pose
@@ -132,32 +132,48 @@ class Display():
     '''
     For displaying on the window
     '''
-    def __init__(self, image_size, loop_rate=15, plot_heading=False):
+    def __init__(self, image_size, max_yawRate, loop_rate=15, plot_heading=False, plot_cmd=False):
         self.is_active = True
         self.image = np.zeros((image_size[0], image_size[1], 4))
-        self.bar = 0.0
+        self.max_yawRate = max_yawRate
         self.loop_rate = loop_rate
         self.plot_heading = plot_heading
+        self.plot_cmd = plot_cmd
+
+        self.heading = 0.0
+        self.t_old = time.time()
+        self.cmd = 0.0
         self.win_name = 'disp'
         self.is_expert = True
         cv2.namedWindow(self.win_name, cv2.WINDOW_NORMAL)
 
-    def update_bar(self, bar):
-        self.bar = bar
+    def update_heading(self, cmd):
+        t_new = time.time()
+        self.heading = cmd * self.max_yawRate * (t_new - self.t_old)
+        self.t_old = t_new
+
+    def update_cmd(self, cmd):
+        self.cmd = cmd
 
     def update_image(self, image):
         self.image = image
 
-    def update(self, image, bar, is_expert):
+    def update(self, image, cmd, is_expert):
         self.update_image(image)
-        self.update_bar(bar)
+        if self.plot_heading:
+            self.update_heading(cmd)
+        if self.plot_cmd:
+            self.update_cmd(cmd)
         self.is_expert = is_expert
 
     def run(self):
+        t_old = time.time()
         while self.is_active:
             start_time = time.time()
             if self.plot_heading:
-                plot_with_heading(self.win_name, self.image, self.bar/2.0, self.is_expert)
+                plot_with_heading(self.win_name, self.image, self.heading, self.is_expert) 
+            elif self.plot_cmd:
+                plot_with_cmd(self.win_name, self.image, self.cmd/2.0, self.is_expert)
             else:
                 plot_without_heading(self.win_name, self.image)
 
