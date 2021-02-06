@@ -74,7 +74,7 @@ class StateMachine():
         print('Collision occurred! API is reset to random initial pose.')
         self.has_collided = True
         self.flight_mode = 'hover' # Hover by default
-        print_msg('In {:s} flight mode'.format(self.flight_mode), type=1)
+        print_msg('In {:s} flight mode'.format(self.flight_mode))
         print_msg('Please reset the stick to its idle position first!', type=2)
 
     # Flight Mode

@@ -6,7 +6,7 @@ sim_params:
 
   train_mode:                 'test' # {'train', 'test'}
   agent_type:                 'reg' # {'none', 'reg', 'latent'}
-  dagger_type:                'hg' # {'none', 'vanilla', 'hg'}
+  dagger_type:                'none' # {'none', 'vanilla', 'hg'}
 
   initial_pose:               (0,0,5,0),(120,143,5,0),(56,66,5,0),(10,49,5,0),(45,112,5,0)         
                               # a set of (pos_x, pos_y, pos_z, yaw) 

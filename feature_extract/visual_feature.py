@@ -23,11 +23,11 @@ class FeatureExtract():
         self.H_points, self.H_size = self.sliding_window(image_height, split_size[0], self.config['SLIDE_OVERLAP'], self.config['SLIDE_FLAG']) 
         self.W_points, self.W_size = self.sliding_window(image_width, split_size[1], self.config['SLIDE_OVERLAP'], self.config['SLIDE_FLAG'])
         
-        # Hough Init'
+        # Hough Init
         self.image_gpu = cv2.cuda_GpuMat()
         self.image_canny = cv2.cuda_GpuMat()
         self.cannyFilter = cv2.cuda.createCannyEdgeDetector(low_thresh=5, high_thresh=20, apperture_size=3)
-        self.houghFilter = cv2.cuda.createHoughLinesDetector(rho=1, theta=(np.pi/16), threshold=3, doSort=True, maxLines=32)
+        self.houghFilter = cv2.cuda.createHoughLinesDetector(rho=1, theta=(np.pi/60), threshold=3, doSort=True, maxLines=32)
         self.houghResult_gpu = np.zeros(self.config['HOUGH_ANGLES'] * 2 * len(self.H_points) * len(self.W_points))
 
         # Structure Tensor Init
@@ -107,17 +107,16 @@ class FeatureExtract():
             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
         self.image_gpu.upload(image)
-        self.image_canny = self.cannyFilter.detect(self.image_gpu)
-        # print(self.image_canny.size)
-        self.houghResult_gpu = self.houghFilter.detect(self.image_canny)
-        houghLines = self.houghResult_gpu.download()
+        image_canny = self.cannyFilter.detect(self.image_gpu)
+        houghResult_gpu = self.houghFilter.detect(self.image_canny)
+        houghLines = houghResult_gpu.download()
 
         hough_result = np.zeros(self.config['HOUGH_ANGLES'])
         if houghLines is not None:
-            for i in range(0, len(houghLines)):
-                thetaIndex = int(houghLines[i][0][1] / np.pi/16)
+            for i in range(0, len(houghLines[0])):
+                thetaIndex = int(houghLines[0][i][1] / (np.pi/15))
                 hough_result[thetaIndex] += 1/32
-        
+
         return hough_result
 
     '''
