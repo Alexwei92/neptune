@@ -20,7 +20,11 @@ class Joystick():
             self.clean()
             raise Exception('Exceed the number of axes on the joystick.')
         else:
-            return self.joystick.get_axis(axis)
+            value = self.joystick.get_axis(axis)
+            # for an imperfect neutral position 
+            if abs(value) < 0.01:
+                value = 0.0
+            return value # round to 8 decimal digits
 
     def clean(self):
         pygame.joystick.quit()

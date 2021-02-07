@@ -5,7 +5,7 @@ sim_params:
   save_data:                  False # {True, False}
 
   train_mode:                 'test' # {'train', 'test'}
-  agent_type:                 'reg' # {'none', 'reg', 'latent'}
+  agent_type:                 'none' # {'none', 'reg', 'latent'}
   dagger_type:                'none' # {'none', 'vanilla', 'hg'}
 
   initial_pose:               (0,0,5,0),(120,143,5,0),(56,66,5,0),(10,49,5,0),(45,112,5,0)         
@@ -31,8 +31,8 @@ rc_params:
 # Visualize parameters
 visualize_params:
   plot_2Dpos:                 False # plot a 2D trajectory in a new window
-  plot_heading:               True # plot heading in the current window
-  plot_cmd:                   False # plot cmd in the current window
+  plot_heading:               False # plot heading in the current window
+  plot_cmd:                   True # plot cmd in the current window
 
 # Training parameters
 train_params:

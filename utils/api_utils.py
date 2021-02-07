@@ -8,6 +8,8 @@ import numpy as np
 import airsim
 from utils import plot_with_cmd, plot_with_heading, plot_without_heading
 
+PRECISION = 8 # decimal digits
+
 # Add random offset to pose
 def add_offset_to_pose(pose, pos_offset=1, yaw_offset=np.pi*2):
     position = airsim.Vector3r(pos_offset*np.random.rand()+pose[0], pos_offset*np.random.rand()+pose[1], -pose[2])
@@ -18,7 +20,7 @@ def add_offset_to_pose(pose, pos_offset=1, yaw_offset=np.pi*2):
 # Get yaw from orientation
 def get_yaw_from_orientation(orientation):
     pitch, roll, yaw = airsim.to_eularian_angles(orientation) # in radians
-    return yaw 
+    return round(yaw, PRECISION) 
 
 # Get the color and depth images in numpy.array
 def get_camera_images(camera_response, image_size):
@@ -47,15 +49,13 @@ def print_msg(msg, type=0):
         print(msg)
 
 # Reset the environment after collision
-def reset_environment(client, state_machine, initial_pose, controller_agent):
+def reset_environment(client, state_machine, initial_pose):
     state_machine.set_collision()
     client.reset()
     client.enableApiControl(True)
     client.armDisarm(True)
     client.simSetVehiclePose(add_offset_to_pose(initial_pose), ignore_collison=True)
 
-    if state_machine.agent_type == 'reg':
-        controller_agent.reset_prvs()
 ####
 class StateMachine():
     '''
@@ -71,11 +71,13 @@ class StateMachine():
 
     # Collision
     def set_collision(self):
-        print('Collision occurred! API is reset to random initial pose.')
-        self.has_collided = True
-        self.flight_mode = 'hover' # Hover by default
-        print_msg('In {:s} flight mode'.format(self.flight_mode))
-        print_msg('Please reset the stick to its idle position first!', type=2)
+        if self.flight_mode is 'mission':
+            print_msg('Collision occurred! API is reset to a random initial pose.', type=3)
+            print_msg('Please reset the stick to its idle position first!', type=2)
+            self.has_collided = True
+            self.flight_mode = 'hover' # Hover by default
+            print_msg('{:s} flight mode'.format(self.flight_mode.capitalize()))
+        
 
     # Flight Mode
     def set_flight_mode(self, x):
@@ -93,7 +95,7 @@ class StateMachine():
         else:
             if new_mode != self.flight_mode:
                 self.flight_mode = new_mode
-                print_msg('In {:s} flight mode'.format(new_mode))
+                print_msg('{:s} flight mode'.format(new_mode.capitalize()))
 
     def get_flight_mode(self):
         return self.flight_mode
@@ -124,16 +126,21 @@ class Logger():
     def __init__(self, root_dir):
         if not os.path.isdir(root_dir):
             os.makedirs(root_dir)
+        self.root_dir = root_dir
+
+        self.configure_folder()
+
+    def configure_folder(self):
         folder_name = datetime.datetime.now().strftime("%Y_%h_%d_%H_%M_%S")
-        folder_path = root_dir+'/'+folder_name
+        folder_path = self.root_dir+'/'+folder_name
         os.makedirs(folder_path+'/'+'color')
         os.makedirs(folder_path+'/'+'depth')
         self.folder_path = folder_path
 
         self.file = open(folder_path+'/'+'airsim.csv', 'w', newline='')
         self.filewriter = csv.writer(self.file, delimiter = ',')
-        self.filewriter.writerow(['timestamp','pos_x','pos_y','pos_z','yaw','yaw_rate','yaw_cmd','crash_count','image_name'])
-        self.crash_count = 0
+        self.filewriter.writerow(['timestamp','pos_x','pos_y','pos_z','yaw','yaw_rate','yaw_cmd','flag'])
+        self.flag = 0
         self.index = 0
 
     def save_image(self, folder, img):
@@ -141,18 +148,21 @@ class Logger():
 
     def save_csv(self, timestamp, state, cmd):
         values = [
-            str(timestamp), # timestamp
-            state.position.x_val, # pos_x
-            state.position.y_val, # pos_y
-            state.position.z_val, # pos_z
-            get_yaw_from_orientation(state.orientation), # yaw
-            state.angular_velocity.z_val, # yaw_rate
-            cmd, # yaw_cmd
-            self.crash_count, # crash_count
-            self.index] # image_name
+            str(timestamp), # timestamp, ns
+            round(state.position.x_val, PRECISION), # pos_x, m
+            round(state.position.y_val, PRECISION), # pos_y, m
+            round(state.position.z_val, PRECISION), # pos_z, m
+            get_yaw_from_orientation(state.orientation), # yaw, rad
+            round(state.angular_velocity.z_val, PRECISION), # yaw_rate, rad/s
+            cmd, # yaw_cmd, [-1,1]
+            self.flag] # flag
         self.filewriter.writerow(values)
         self.index += 1
 
+    def reset_folder(self):
+        self.clean()
+        self.configure_folder()
+        
     def clean(self):
         self.file.close()
         if self.index == 0:

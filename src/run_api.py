@@ -97,6 +97,17 @@ if __name__ == '__main__':
     if save_data:
         data_logger = Logger(os.path.join(setup_path.parent_dir, output_path))
 
+    # Reset function
+    def reset():
+        reset_environment(client, state_machine, random.choice(initial_pose))
+
+        if state_machine.agent_type == 'reg':
+            controller_agent.reset_prvs()
+        if save_data:
+            data_logger.reset_folder()
+        if plot_2Dpos:
+            pos_handle.reset()
+
     '''
     Main Code
     '''
@@ -109,9 +120,9 @@ if __name__ == '__main__':
         client.takeoffAsync()
 
         # Initial pose
-        client.simSetVehiclePose(add_offset_to_pose(np.random.choice(initial_pose)), ignore_collison=True)
+        client.simSetVehiclePose(add_offset_to_pose(random.choice(initial_pose)), ignore_collison=True)
         time.sleep(0.5)
-
+        
         # Multi-threading process for display
         disp_thread = threading.Thread(target=disp_handle.run)
         disp_thread.start()
@@ -122,16 +133,15 @@ if __name__ == '__main__':
 
             # Check collision
             if client.simGetCollisionInfo().has_collided:
-                reset_environment(client, state_machine, random.choice(initial_pose), controller_agent)
-                if save_data:
-                    data_logger.crash_count += 1
+                reset()
 
             # Get Multirotor estimated states
             drone_state = client.getMultirotorState()
 
             # Update pilot yaw command from RC/joystick
             pilot_cmd = joy.get_input(yaw_axis)
-
+            pilot_cmd = round(pilot_cmd, PRECISION)  
+        
             # Update flight mode from RC/joystick
             state_machine.set_flight_mode(joy.get_input(mode_axis))
 
@@ -199,19 +209,17 @@ if __name__ == '__main__':
                 raise Exception('Unknown train_mode: ' + train_mode)
 
             if plot_2Dpos:
-                pos_handle.update(drone_state.kinematics_estimated.position.x_val, 
-                                  drone_state.kinematics_estimated.position.y_val)
+                pos_handle.update(round(drone_state.kinematics_estimated.position.x_val, 3), 
+                                  round(drone_state.kinematics_estimated.position.y_val, 3))
 
             # for CV plotting
             key = cv2.waitKey(1) & 0xFF
             if (key == 27 or key == ord('q')):
                 break
             
-            # Manual crash
+            # Manual reset
             if (key==ord('k')):
-                reset_environment(client, state_machine, random.choice(initial_pose), controller_agent)
-                if save_data:
-                    data_logger.crash_count += 1
+                reset()
 
             # Ensure that the loop is running at a fixed rate
             elapsed_time = time.perf_counter() - start_time

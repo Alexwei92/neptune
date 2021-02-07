@@ -25,6 +25,10 @@ class DynamicPlot():
         # self.fig.draw()
         plt.pause(1e-5)
 
+    def reset(self):
+        self.line.set_xdata(np.array([]))
+        self.line.set_ydata(np.array([]))
+
 # Plot image with cmd
 # input is normalized to [-0.5, 0.5]
 def plot_with_cmd(win_name, image, input, is_expert):
@@ -45,7 +49,7 @@ def plot_with_cmd(win_name, image, input, is_expert):
         color = (255,0,0) # blue
     cv2.rectangle(image, (int(center_pos-bar_width/2),int(h1*height)), (int(center_pos+bar_width/2),int(h2*height)), color, -1)
     # plot center line
-    cv2.line(image, (int(0.5*width),int(h1*height)), (int(0.5*width),int(h2*height)), (255,255,255), 2) # white
+    cv2.line(image, (int(0.5*width),int(h1*height)), (int(0.5*width),int(h2*height)), (255,255,255), 1) # white
     cv2.imshow(win_name, image) 
 
 # Plot image with heading

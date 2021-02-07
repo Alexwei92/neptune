@@ -78,7 +78,7 @@ if __name__ == '__main__':
         preload_sample = config['train_params']['preload_sample']
         
         # Create the agent
-        reg_agent = RegTrain(dataset_dir, image_size, cmd_index, preload_sample)
+        reg_agent = RegTrain(dataset_dir, image_size, cmd_index, preload_sample, False)
 
         # Train the model
         reg_agent.train()

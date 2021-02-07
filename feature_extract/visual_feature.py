@@ -3,6 +3,7 @@ import cv2
 import os
 import glob
 import time
+# import multiprocessing as mp
 
 class FeatureExtract():
     def __init__(self, config, image_size, printout=False):
@@ -35,8 +36,7 @@ class FeatureExtract():
         self.create_lawMask(self.config['LAW_MASK'])
 
         # Optical Flow Init
-        self.image_prvs = cv2.cuda_GpuMat()
-        # self.image_next = cv2.cuda_GpuMat()
+        self.image_prvs = np.array([], dtype=np.uint8)
         self.nvof = cv2.cuda_FarnebackOpticalFlow.create(numLevels=3, pyrScale=0.5, fastPyramids=False, winSize=15,
                                                     numIters=3, polyN=5, polySigma=1.1, flags=0) 
 
@@ -242,20 +242,17 @@ class FeatureExtract():
     '''
     @ Optical Flow
     '''
-    def flow_feature(self, image):
+    def flow_feature(self, image_next, image_prvs):
         # Convert to grayscale
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        image_next = cv2.cvtColor(image_next, cv2.COLOR_BGR2GRAY)
+        image_prvs = cv2.cvtColor(image_prvs, cv2.COLOR_BGR2GRAY)
 
-        if self.image_prvs.empty():
-            # if no previous image to compare, duplicate the current one
-            self.image_prvs.upload(image)
-
-        image_next = cv2.cuda_GpuMat(image)
+        image_next = cv2.cuda_GpuMat(image_next)
+        image_prvs = cv2.cuda_GpuMat(image_prvs)
 
         # Call OF function
-        flow_gpu = self.nvof.calc(self.image_prvs, image_next, None)
+        flow_gpu = self.nvof.calc(image_prvs, image_next, None)
         flow = flow_gpu.download()
-        self.image_prvs = image_next
 
         # Calculate magnitude and angle
         # mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1])
@@ -264,8 +261,8 @@ class FeatureExtract():
         flow_result = np.zeros(3)
         flow_result[0] = np.amax(mag)
         flow_result[1] = np.amin(mag)
-        flow_result[2] = np.mean(mag) * 1E3
-
+        flow_result[2] = np.mean(mag)
+        
         return flow_result
 
     '''
@@ -296,10 +293,55 @@ class FeatureExtract():
                 cropped_image = image[i:i+self.H_size, j:j+self.W_size]
                 for name, size, function in self.feature_list:
                     start_time = time.perf_counter()
-                    self.feature_color_result[k:k+size] = function(cropped_image)
+                    if name is 'optical_flow':
+                        cropped_image_prvs = self.image_prvs[i:i+self.H_size, j:j+self.W_size]
+                        self.feature_color_result[k:k+size] = function(cropped_image, cropped_image_prvs)
+                    else:
+                        self.feature_color_result[k:k+size] = function(cropped_image)
                     self.time_dict[name] = time.perf_counter() - start_time 
                     k += size
+        # for optical flow
+        self.image_prvs = image
+        return self.feature_color_result
 
+    # def update_color_multicore(self, image):
+    #     # Convert to BGR
+    #     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        
+    #     # Get features for each window
+    #     k = 0
+    #     for i in self.H_points:
+    #         for j in self.W_points:
+    #             # Cropped image
+    #             cropped_image = image[i:i+self.H_size, j:j+self.W_size]
+
+    #             tmp = mp.Queue()
+    #             jobs = []
+    #             for name, size, function in self.feature_list:
+    #                 start_time = time.perf_counter()
+    #                 # if name is 'optical_flow':
+    #                 #     cropped_image_prvs = self.image_prvs[i:i+self.H_size, j:j+self.W_size]
+    #                 #     self.feature_color_result[k:k+size] = function(cropped_image, cropped_image_prvs)
+    #                 # else:
+    #                 #     self.feature_color_result[k:k+size] = function(cropped_image)
+    #                 # self.time_dict[name] = time.perf_counter() - start_time 
+    #                 # k += size
+
+    #                 if name is 'optical_flow':
+    #                     cropped_image_prvs = self.image_prvs[i:i+self.H_size, j:j+self.W_size]
+    #                     task = mp.Process(target=function, args=(cropped_image,cropped_image_prvs))
+    #                 else:
+    #                     task = mp.Process(target=function, args=(cropped_image,))
+    #                 jobs.append(task)
+    #                 task.start()
+    #                 self.time_dict[name] = time.perf_counter() - start_time 
+
+    #             for proc in jobs:
+    #                 proc.join()
+
+
+        # for optical flow
+        self.image_prvs = image
         return self.feature_color_result
 
     def update_depth(self, image):
@@ -317,6 +359,10 @@ class FeatureExtract():
         return self.feature_depth_result
 
     def step(self, image_color, image_depth):
+        # for the optical flow
+        if self.image_prvs.size == 0:
+            self.image_prvs = image_color
+    
         self.update_color(image_color)
         self.update_depth(image_depth)
         # Update time for each feature functions
@@ -337,6 +383,6 @@ class FeatureExtract():
         return len(self.feature_color_result) + len(self.feature_depth_result)
 
     def reset(self):
-        self.image_prvs = cv2.cuda_GpuMat()
+        self.image_prvs = np.array([], dtype=np.uint8)
         self.feature_color_result.fill(0.0)
         self.feature_depth_result.fill(0.0)

@@ -9,7 +9,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.svm import SVR
 from scipy.optimize import curve_fit
 
-def calculate_regression(X, y, disp_summary=False):
+def calculate_regression(X, y):
     print('\n*** Training Results ***')
     reg = LinearRegression().fit(X, y)
     r_square = reg.score(X, y)
@@ -80,7 +80,9 @@ class RegTrain():
             for color_file, depth_file in zip(file_list_color, file_list_depth):
                 image_color = cv2.imread(color_file, cv2.IMREAD_UNCHANGED)
                 image_depth = cv2.imread(depth_file, cv2.IMREAD_UNCHANGED)
+                tic = time.perf_counter()
                 X[i,:] = self.feature_agent.step(image_color, image_depth)
+                print('elapsed time: {:.4f}'.format(time.perf_counter()-tic))
                 self.feature_agent.reset()
                 i += 1
 
