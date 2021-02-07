@@ -2,6 +2,7 @@ import glob
 import os
 import numpy as np
 import cv2
+import pandas
 
 from feature_extract import *
 from sklearn.linear_model import LinearRegression
@@ -19,7 +20,7 @@ def calculate_regression(X, y, disp_summary=False):
     print('MSE = {:.6f}'.format(mse))
     print('RMSE = {:.6f}'.format(rmse))
     print('Number of weights = {:} '.format(len(reg.coef_)+1))
-    print('\n')
+    print('***********************\n')
     return reg.coef_, reg.intercept_, r_square, rmse
 
 def sigmoid_function(X, w):
@@ -37,8 +38,6 @@ def calculate_nonlinear(X, y):
     d = 1
     popt, pcov  = curve_fit(sigmoid_function, xdata=X, ydata=y, p0=np.ones((2074,)))
 
-
-
 class RegTrain():
     '''
     Linear Regression Training Agent
@@ -46,14 +45,13 @@ class RegTrain():
     def __init__(self, folder_path, image_size, cmd_index, preload=False, printout=False):
         self.feature_agent = FeatureExtract(feature_config, image_size, printout)
         self.cmd_index = cmd_index
-        self.cmd_nprvs = feature_config['CMD_NPRVS']
+        self.cmd_numprvs = feature_config['CMD_NUMPRVS']
         self.cmd_decay = feature_config['CMD_DECAY']
-        self.X = np.empty((0, self.feature_agent.get_size()+self.cmd_nprvs+1), dtype=np.float32)
-        self.y = np.empty((0,), dtype=np.float32)
+        self.X = np.empty((0, self.feature_agent.get_size()+self.cmd_numprvs+1))
+        self.y = np.empty((0,))
 
         for subfolder in os.listdir(folder_path):
             subfolder_path = os.path.join(folder_path, subfolder)
-            # print(subfolder_path)
             file_list_color = glob.glob(os.path.join(subfolder_path, 'color', '*.png'))
             file_list_depth = glob.glob(os.path.join(subfolder_path, 'depth', '*.png'))
             file_list_color.sort()
@@ -72,21 +70,23 @@ class RegTrain():
             self.y = np.concatenate((self.y, y), axis=0)
 
     def get_sample(self, file_list_color, file_list_depth, folder_path, preload):
-        file_path = os.path.join(folder_path, 'sample_preload.csv')
+        file_path = os.path.join(folder_path, 'feature_preload.pkl')
         
         if preload and os.path.isfile(file_path):
-            X = np.genfromtxt(file_path, delimiter=',', dtype=np.float32)
-            # print('Load samples from:', file_path)
+            X = pandas.read_pickle(file_path).to_numpy()
         else:
-            X = np.zeros((len(file_list_color), self.feature_agent.get_size()), dtype=np.float32)
+            X = np.zeros((len(file_list_color), self.feature_agent.get_size()))
             i = 0
             for color_file, depth_file in zip(file_list_color, file_list_depth):
-                print(color_file)
                 image_color = cv2.imread(color_file, cv2.IMREAD_UNCHANGED)
                 image_depth = cv2.imread(depth_file, cv2.IMREAD_UNCHANGED)
                 X[i,:] = self.feature_agent.step(image_color, image_depth)
+                self.feature_agent.reset()
                 i += 1
-            np.savetxt(file_path, X, delimiter=',')
+
+            # save to file for the future use
+            pandas.DataFrame(X).to_pickle(file_path)
+
         print('Load samples from {:s} successfully.'.format(folder_path))     
 
         X_extra, y = self.read_telemetry(folder_path, self.cmd_index)
@@ -96,31 +96,31 @@ class RegTrain():
     def read_telemetry(self, folder_path, index):
         # read telemetry csv
         telemetry_data = np.genfromtxt(os.path.join(folder_path, 'airsim.csv'), 
-                    delimiter=',', skip_header=True, dtype=np.float32)
+                    delimiter=',', skip_header=True)
         
-        y = telemetry_data[:, index] # yaw_cmd
+        telemetry_data1 = pandas.read_csv(os.path.join(folder_path, 'airsim.csv'))
+        y = telemetry_data1['yaw_cmd'].to_numpy()
         for k in range(len(y)):
             if np.abs(y[k]) < 1e-3:
                 y[k] = 0.0
 
         # Previous commands with time decaying
-        y_prvs = np.zeros((len(y), self.cmd_nprvs), dtype=np.float32)
+        y_prvs = np.zeros((len(y), self.cmd_numprvs))
         for i in range(len(y)):
-            for j in range(self.cmd_nprvs):
+            for j in range(self.cmd_numprvs):
                 if i > j:
                     y_prvs[i,j] = y[i-(j+1)] * self.cmd_decay**(j+1)
 
         # Yaw rate
-        yawRate = np.reshape(telemetry_data[:, index-1], (-1,1)) # yaw rate, assume it's left to the yaw cmd column
-        
+        print(telemetry_data1['yaw_rate'].to_numpy().shape)
+        yawRate =  np.reshape(telemetry_data1['yaw_rate'].to_numpy(), (-1,1))  # yaw rate
         X_extra = np.concatenate((y_prvs, yawRate), axis=1)
         return X_extra, y
 
     def calculate_weight(self):
         weight, intercept, self.r2, self.rmse = calculate_regression(self.X, self.y)
         self.weight = np.append(intercept, weight)
-        calculate_nonlinear(self.X, self.y)
-
+        
     def train(self):
         self.calculate_weight()
 

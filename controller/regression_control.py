@@ -10,13 +10,13 @@ class RegCtrl():
     def __init__(self, image_size, weight_file_path, printout=False):
         self.load_weight_from_file(weight_file_path)
         self.feature_agent = FeatureExtract(feature_config, image_size, printout)
-        self.cmd_nprvs = feature_config['CMD_NPRVS']
+        self.cmd_numprvs = feature_config['CMD_NUMPRVS']
         self.cmd_decay = feature_config['CMD_DECAY']
-        self.cmd_prvs = np.zeros((self.cmd_nprvs,), dtype=np.float32)
+        self.cmd_prvs = np.zeros((self.cmd_numprvs,))
         print('The linear regression controller is initialized.')
 
     def load_weight_from_file(self, file_path):
-        self.weight = np.genfromtxt(file_path, delimiter=',', dtype=np.float32)
+        self.weight = np.genfromtxt(file_path, delimiter=',')
         print('Load weight from: ', file_path)
 
     def predict(self, image_color, image_depth, yawRate):
@@ -31,7 +31,7 @@ class RegCtrl():
         if np.abs(y) < 1e-3:
             y = 0.0
 
-        for i in reversed(range(1,self.cmd_nprvs)):
+        for i in reversed(range(1,self.cmd_numprvs)):
             self.cmd_prvs[i] = self.cmd_prvs[i-1]
         self.cmd_prvs[0] = y
 
@@ -43,4 +43,4 @@ class RegCtrl():
         return y
 
     def reset_prvs(self):
-        self.cmd_prvs = np.zeros((self.cmd_nprvs,), dtype=np.float32)
+        self.cmd_prvs.fill(0.0)

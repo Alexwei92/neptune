@@ -109,7 +109,7 @@ if __name__ == '__main__':
         client.takeoffAsync()
 
         # Initial pose
-        client.simSetVehiclePose(add_offset_to_pose(random.choice(initial_pose)), ignore_collison=True)
+        client.simSetVehiclePose(add_offset_to_pose(np.random.choice(initial_pose)), ignore_collison=True)
         time.sleep(0.5)
 
         # Multi-threading process for display

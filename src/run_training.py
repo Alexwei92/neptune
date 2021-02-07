@@ -16,20 +16,20 @@ from imitation_learning import *
 if __name__ == '__main__':
 
     # Read YAML configurations
-    with open('config.yaml', 'r') as file:
-        try:
-            config = yaml.safe_load(file)
-            print('Load config.yaml file successfully.')
-        except yaml.YAMLError as e:
-            print(e)
-            raise Exception
+    try:
+        file = open('config.yaml', 'r')
+        config = yaml.safe_load(file)
+        file.close()
+    except Exception as error:
+        print_msg(str(error), type=3)
+        exit()
 
     # Training settings
     dataset_dir = os.path.join(setup_path.parent_dir, config['train_params']['dataset_dir']) 
     output_dir = os.path.join(setup_path.parent_dir, config['train_params']['output_dir']) 
     
     if not os.path.isdir(dataset_dir):
-        raise IOError("***No such folder!", dataset_dir)
+        raise Exception("No such folder {:s}".format(dataset_dir))
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
 

@@ -8,7 +8,6 @@ class FeatureExtract():
     def __init__(self, config, image_size, printout=False):
         self.config = config
         self.image_size = image_size
-        self.precision = np.float32
         self.printout = printout
 
         self.configure()
@@ -24,21 +23,20 @@ class FeatureExtract():
         self.W_points, self.W_size = self.sliding_window(image_width, split_size[1], self.config['SLIDE_OVERLAP'], self.config['SLIDE_FLAG'])
         
         # Hough Init
-        self.image_gpu = cv2.cuda_GpuMat()
-        self.image_canny = cv2.cuda_GpuMat()
+        # self.image_gpu = cv2.cuda_GpuMat()
+        # self.image_canny = cv2.cuda_GpuMat()
         self.cannyFilter = cv2.cuda.createCannyEdgeDetector(low_thresh=5, high_thresh=20, apperture_size=3)
         self.houghFilter = cv2.cuda.createHoughLinesDetector(rho=1, theta=(np.pi/60), threshold=3, doSort=True, maxLines=32)
-        self.houghResult_gpu = np.zeros(self.config['HOUGH_ANGLES'] * 2 * len(self.H_points) * len(self.W_points))
+        # self.houghResult_gpu = np.zeros(self.config['HOUGH_ANGLES'] * 2 * len(self.H_points) * len(self.W_points))
 
         # Structure Tensor Init
-        # empty
 
         # Law Mask Init
         self.create_lawMask(self.config['LAW_MASK'])
 
         # Optical Flow Init
         self.image_prvs = cv2.cuda_GpuMat()
-        self.image_next = cv2.cuda_GpuMat()
+        # self.image_next = cv2.cuda_GpuMat()
         self.nvof = cv2.cuda_FarnebackOpticalFlow.create(numLevels=3, pyrScale=0.5, fastPyramids=False, winSize=15,
                                                     numIters=3, polyN=5, polySigma=1.1, flags=0) 
 
@@ -47,7 +45,7 @@ class FeatureExtract():
             # Name,              Size,                            Function handle 
             ('hough',            self.config['HOUGH_ANGLES'],     self.hough_feature),
             ('structure_tensor', self.config['TENSOR_HISTBIN'],   self.tensor_feature),
-            ('law_mask',         len(self.config['LAW_MASK']),  self.law_feature),
+            ('law_mask',         len(self.config['LAW_MASK']),    self.law_feature),
             ('optical_flow',     3,                               self.flow_feature),
         ]
 
@@ -56,11 +54,11 @@ class FeatureExtract():
         for name, size, function in self.feature_list:
             size_each_window += size
             self.time_dict[name] = 0.0
-        self.feature_color_result = np.zeros(size_each_window * len(self.H_points) * len(self.W_points), dtype=self.precision)
+        self.feature_color_result = np.zeros(size_each_window * len(self.H_points) * len(self.W_points))
     
         # Depth Feature Init
         self.depth_size = 1
-        self.feature_depth_result = np.zeros(self.depth_size * len(self.H_points) * len(self.W_points), dtype=self.precision)
+        self.feature_depth_result = np.zeros(self.depth_size * len(self.H_points) * len(self.W_points))
         self.time_dict['depth'] = 0.0
 
     ''' 
@@ -106,9 +104,9 @@ class FeatureExtract():
         if len(image.shape) > 2:
             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-        self.image_gpu.upload(image)
-        image_canny = self.cannyFilter.detect(self.image_gpu)
-        houghResult_gpu = self.houghFilter.detect(self.image_canny)
+        image_gpu = cv2.cuda_GpuMat(image)
+        image_canny = self.cannyFilter.detect(image_gpu)
+        houghResult_gpu = self.houghFilter.detect(image_canny)
         houghLines = houghResult_gpu.download()
 
         hough_result = np.zeros(self.config['HOUGH_ANGLES'])
@@ -252,12 +250,12 @@ class FeatureExtract():
             # if no previous image to compare, duplicate the current one
             self.image_prvs.upload(image)
 
-        self.image_next.upload(image)
+        image_next = cv2.cuda_GpuMat(image)
 
         # Call OF function
-        flow_gpu = self.nvof.calc(self.image_prvs, self.image_next, None)
+        flow_gpu = self.nvof.calc(self.image_prvs, image_next, None)
         flow = flow_gpu.download()
-        self.image_prvs = self.image_next
+        self.image_prvs = image_next
 
         # Calculate magnitude and angle
         # mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1])
@@ -337,3 +335,8 @@ class FeatureExtract():
 
     def get_size(self):
         return len(self.feature_color_result) + len(self.feature_depth_result)
+
+    def reset(self):
+        self.image_prvs = cv2.cuda_GpuMat()
+        self.feature_color_result.fill(0.0)
+        self.feature_depth_result.fill(0.0)
