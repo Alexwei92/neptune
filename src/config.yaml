@@ -36,11 +36,10 @@ visualize_params:
 
 # Training parameters
 train_params:
-  dataset_dir:                'my_datasets/peng/river/test' # source datasets path
-  output_dir:                 'my_outputs/peng/river/test' # save output to this path
+  dataset_dir:                'my_datasets/peng/river/iter0' # source datasets path
+  output_dir:                 'my_outputs/peng/river/iter0' # save output to this path
   
-  cmd_index:                  6 # column index of yaw command in .csv file
-  result_only:                False # this will disable all trainings and only show results
+  result_only:                False # this will diable all trainings and only show results
 
   train_reg:                  True # enable train linear regression weights
   preload_sample:             False # preload samples from file

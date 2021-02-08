@@ -69,7 +69,7 @@ if __name__ == '__main__':
         plt.show()
 
     # cmd location in telemetry data
-    cmd_index = config['train_params']['cmd_index']
+    # cmd_index = config['train_params']['cmd_index']
 
     # 1) Linear Regression
     if train_reg:
@@ -78,14 +78,27 @@ if __name__ == '__main__':
         preload_sample = config['train_params']['preload_sample']
         
         # Create the agent
-        reg_agent = RegTrain(dataset_dir, image_size, cmd_index, preload_sample, False)
+        # tic = time.perf_counter()
+        # tmp1 = mp.Process(target=RegTrain_single, args=(dataset_dir, image_size, preload_sample, False))
+        # reg_agent1 = RegTrain_single(dataset_dir, image_size, preload_sample, False)
+        # tmp1.start()
+        # tmp1.join()
+        # print('Single core time: ', time.perf_counter() - tic)
+        # reg_agent1.train()
+
+        tic = time.perf_counter()
+        tmp2 = mp.Process(target=RegTrain_multi, args=(dataset_dir, image_size, preload_sample, False))
+        #reg_agent2 = RegTrain_multi(dataset_dir, image_size, preload_sample, False)
+        tmp2.start()
+        tmp2.join()
+        print('Multi core time: ', time.perf_counter() - tic)
 
         # Train the model
-        reg_agent.train()
+        #reg_agent2.train()
         print('Trained linear regression model successfully.')
 
         # Save weight to file
-        reg_agent.save_weight(os.path.join(output_dir, 'reg_weight.csv'))
+        # reg_agent2.save_weight(os.path.join(output_dir, 'reg_weight.csv'))
 
     # 2) VAE
     if train_vae:
