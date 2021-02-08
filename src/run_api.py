@@ -86,6 +86,9 @@ if __name__ == '__main__':
     # State Machine Init
     state_machine = StateMachine(agent_type, train_mode)
 
+    # Rangfinder Init
+    rangefinder = Rangefinder()
+
     # Visualize Init
     disp_handle = Display(image_size, max_yawRate, loop_rate, plot_heading, plot_cmd) 
 
@@ -100,7 +103,7 @@ if __name__ == '__main__':
     # Reset function
     def reset():
         reset_environment(client, state_machine, random.choice(initial_pose))
-
+        rangefinder.reset()
         if state_machine.agent_type == 'reg':
             controller_agent.reset_prvs()
         if save_data:
@@ -137,6 +140,10 @@ if __name__ == '__main__':
 
             # Get Multirotor estimated states
             drone_state = client.getMultirotorState()
+
+            # Update rangefinder height
+            rangefinder_distance = client.getDistanceSensorData().distance
+            rangefinder.update(rangefinder_distance)
 
             # Update pilot yaw command from RC/joystick
             pilot_cmd = joy.get_input(yaw_axis)
@@ -175,16 +182,16 @@ if __name__ == '__main__':
             controller.set_current_yaw(current_yaw)
 
             if state_machine.is_expert or state_machine.flight_mode == 'hover':
-                controller.step(pilot_cmd, state_machine.get_flight_mode())
+                controller.step(pilot_cmd, rangefinder.get_filtered_height(), state_machine.get_flight_mode())
                 agent_cmd = pilot_cmd
             else:
                 if state_machine.agent_type == 'reg':
                     yawRate = drone_state.kinematics_estimated.angular_velocity.z_val
                     agent_cmd = controller_agent.predict(image_color, image_depth, yawRate)
-                    controller.step(agent_cmd, 'mission')
+                    controller.step(agent_cmd, rangefinder.get_filtered_height(), 'mission')
                 elif state_machine.agent_type == 'latent':
                     agent_cmd = controller_agent.predict(image_color)
-                    controller.step(agent_cmd, 'mission')
+                    controller.step(agent_cmd, rangefinder.get_filtered_height(), 'mission')
                 else:
                     raise Exception('You must define an agent type!')
 

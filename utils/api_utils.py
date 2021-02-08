@@ -234,21 +234,55 @@ class Controller():
     def set_current_yaw(self, yaw):
         self.current_yaw = yaw
 
-    def step(self, cmd, flight_mode):
+    def step(self, cmd, rangefinder_height, flight_mode):
         yawRate = cmd * self.max_yawRate
+        height_diff = self.height - rangefinder_height 
+        throttle = 0.5 + 0.15*height_diff
+        print(0.5*height_diff)
+
+        if throttle > 1.0:
+            throttle = 1.0
+        if throttle < 0.0:
+            throttle = 0.0
 
         if flight_mode is 'hover':
             # hover
-            self.client.rotateByYawRateAsync(yaw_rate=yawRate, duration=1)
+            # self.client.rotateByYawRateAsync(yaw_rate=yawRate, duration=1)
+            self.client.moveByRollPitchYawrateThrottleAsync(0, 0, yaw_rate=-yawRate,
+                                                 throttle=throttle, duration=1)
 
         elif flight_mode is 'mission':
             # forward flight
             vx = self.forward_speed * np.cos(self.current_yaw)
             vy = self.forward_speed * np.sin(self.current_yaw)
-            self.client.moveByVelocityZAsync(vx=vx, vy=vy, 
-                                            z=-self.height,
-                                            duration=1,
-                                            yaw_mode=airsim.YawMode(True, yawRate))
-
+            # self.client.moveByVelocityZAsync(vx=vx, vy=vy, 
+            #                                 z=-self.height,
+            #                                 duration=1,
+            #                                 yaw_mode=airsim.YawMode(True, yawRate))
+            self.client.moveByVelocityAsync(vx=vx, vy=vy, 
+                                vz=0,
+                                duration=1,
+                                yaw_mode=airsim.YawMode(True, yawRate))
         else:
             raise Exception('Unknown flight_mode: ' + flight_mode)
+
+
+class Rangefinder():
+    '''
+    Rangefinder class
+    '''
+    def __init__(self, N=10):
+        self.N = 10
+        self.distance = np.array([])
+
+    def update(self, x):
+        if len(self.distance) < self.N:
+            self.distance = np.append(self.distance, x)
+        else:
+            self.distance = np.append(np.delete(self.distance, 0), x)
+
+    def get_filtered_height(self):
+        return np.mean(self.distance)
+
+    def reset(self):
+        self.distance = np.array([])
