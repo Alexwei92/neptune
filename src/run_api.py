@@ -14,9 +14,6 @@ from utils import *
 from controller import *
 
 if __name__ == '__main__':
-    # Connect to the AirSim simulator
-    client = airsim.MultirotorClient()
-    client.confirmConnection()
 
     # Read YAML configurations
     try:
@@ -39,7 +36,7 @@ if __name__ == '__main__':
     # Control settings
     max_yawRate = config['ctrl_params']['max_yawRate']
     forward_speed = config['ctrl_params']['forward_speed']
-    height = config['ctrl_params']['height']
+    mission_height = config['ctrl_params']['mission_height']
     image_size = eval(config['ctrl_params']['image_size'])
     use_rangefinder = config['ctrl_params']['use_rangefinder']
     model_path = config['ctrl_params']['model_path']
@@ -55,44 +52,46 @@ if __name__ == '__main__':
     plot_cmd = config['visualize_params']['plot_cmd']
     plot_2Dpos = config['visualize_params']['plot_2Dpos']
 
-    # Controller Init
-    controller = Controller(client, forward_speed, height, max_yawRate, use_rangefinder)
+    # Fast Loop Init
+    kwargs = {
+        'agent_type': agent_type,
+        'image_size': image_size,
+        'initial_pose': initial_pose,
+        'loop_rate': loop_rate,
+        'max_yawRate': max_yawRate,
+        'mission_height': mission_height,
+        'forward_speed': forward_speed,
+        'train_mode': train_mode,
+        'use_rangefinder': use_rangefinder,
+        'joystick': joy,
+        'yaw_axis': yaw_axis,
+        'type_axis': type_axis,
+        'mode_axis': mode_axis,                    
+    }
+    fast_loop = FastLoop(**kwargs)
 
+    # Control Agent Init
     if agent_type == 'reg':
         # Linear regression controller
         reg_weight_path = os.path.join(setup_path.parent_dir, model_path, 'reg_weight.csv')
-        controller_agent = RegCtrl(image_size, reg_weight_path, True)
-
+        controller_agent = RegCtrl(image_size, reg_weight_path, printout=False)
     elif agent_type == 'latent':
         # Latent NN controller
         z_dim = config['train_params']['z_dim']
         img_resize = eval(config['train_params']['img_resize'])
         vae_model_path = os.path.join(setup_path.parent_dir, model_path, 'vae_model.pt')
         latent_model_path = os.path.join(setup_path.parent_dir, model_path, 'latent_model.pt')
-        controller_agent = LatentCtrl(
-                            vae_model_path=vae_model_path,
-                            latent_model_path=latent_model_path,
-                            z_dim=z_dim,
-                            image_resize=img_resize)
-    
+        controller_agent = LatentCtrl(vae_model_path, latent_model_path, z_dim, img_resize)
     elif agent_type == 'none':
-        # manual control
+        # Manual control
         dagger_type = 'none'
         print_msg('No agent controller enabled.')
-    
     else:
         print_msg('Unknow agent_type: ' + agent_type, type=3)
         exit()
 
-    # State Machine Init
-    state_machine = StateMachine(agent_type, train_mode)
-
-    # Rangfinder Init
-    if use_rangefinder:
-        rangefinder = Rangefinder()
-
     # Visualize Init
-    disp_handle = Display(image_size, max_yawRate, loop_rate, plot_heading, plot_cmd) 
+    disp_handle = Display(image_size, max_yawRate, plot_heading, plot_cmd) 
 
     if plot_2Dpos:
         fig, ax = plt.subplots()
@@ -104,128 +103,81 @@ if __name__ == '__main__':
 
     # Reset function
     def reset():
-        reset_environment(client, state_machine, random.choice(initial_pose))
-
-        if state_machine.agent_type == 'reg':
+        if fast_loop.agent_type == 'reg':
             controller_agent.reset_prvs()
         if save_data:
             data_logger.reset_folder()
         if plot_2Dpos:
             pos_handle.reset()
-        if use_rangefinder:
-            controller.reset_pid()
-            rangefinder.reset()
 
     '''
     Main Code
     '''
     try:
-        # Enable API control
-        client.enableApiControl(True)
-        client.armDisarm(True)
 
-        # Take-off
-        client.takeoffAsync()
-
-        # Initial pose
-        client.simSetVehiclePose(add_offset_to_pose(random.choice(initial_pose)), ignore_collison=True)
-        time.sleep(0.5)
-        
         # Multi-threading process for display
         disp_thread = threading.Thread(target=disp_handle.run)
         disp_thread.start()
 
+        # Multi-threading process for state machine
+        fastloop_thread = threading.Thread(target=fast_loop.run)
+        fastloop_thread.start()
+
+        time.sleep(1.0)
         print_msg("Ready to fly!", type=1)
         while True:
             start_time = time.perf_counter() # loop start time
-
-            # Check collision
-            if client.simGetCollisionInfo().has_collided:
+                      
+            # check collision
+            if fast_loop.trigger_reset:
                 reset()
-
-            # Get Multirotor estimated states
-            drone_state = client.getMultirotorState()
-
-            # Update pilot yaw command from RC/joystick
-            pilot_cmd = joy.get_input(yaw_axis)
-            pilot_cmd = round(pilot_cmd, PRECISION)  
-        
-            # Update flight mode from RC/joystick
-            state_machine.set_flight_mode(joy.get_input(mode_axis))
-
-            # Update controller type from RC/joystick
-            state_machine.set_controller_type(joy.get_input(type_axis))
-
-            # Get images
-            camera_response = client.simGetImages([
-                # uncompressed RGB array bytes 
-                airsim.ImageRequest('0', airsim.ImageType.Scene, pixels_as_float=False, compress=False),
-                # floating point uncompressed image
-                airsim.ImageRequest('1', airsim.ImageType.DepthVis, pixels_as_float=True, compress=False)])
-            image_color, image_depth = get_camera_images(camera_response, image_size)
-
+                fast_loop.trigger_reset = False
+            
             # for regression controller:
-            if state_machine.is_expert and agent_type == 'reg':
+            if fast_loop.is_expert and agent_type == 'reg':
                 controller_agent.reset_prvs()
 
             # Data logging
-            if save_data and state_machine.get_flight_mode() == 'mission':
-                if (dagger_type == 'hg') and (not state_machine.is_expert):
+            if save_data and fast_loop.flight_mode == 'mission':
+                if (dagger_type == 'hg') and (not fast_loop.is_expert):
                     # in Hg-dagger, only log data in manual mode
                     pass
                 else:
-                    data_logger.save_image('color', image_color)
-                    data_logger.save_image('depth', image_depth)
-                    data_logger.save_csv(drone_state.timestamp, drone_state.kinematics_estimated, pilot_cmd)
-
-            # Update controller commands
-            current_yaw = get_yaw_from_orientation(drone_state.kinematics_estimated.orientation)
-            controller.set_current_yaw(current_yaw)
-
-            # Update rangefinder and z_velocity
-            if use_rangefinder:
-                estimated_height = rangefinder.update(client.getDistanceSensorData().distance)
-                controller.set_current_zvelocity(drone_state.kinematics_estimated.linear_velocity.z_val)
-            else:
-                estimated_height = height
-
-            if state_machine.is_expert or state_machine.flight_mode == 'hover':
-                controller.step(pilot_cmd, estimated_height, state_machine.get_flight_mode())
-                agent_cmd = pilot_cmd
-            else:
-                if state_machine.agent_type == 'reg':
-                    yawRate = drone_state.kinematics_estimated.angular_velocity.z_val
-                    agent_cmd = controller_agent.predict(image_color, image_depth, yawRate)
-                    controller.step(agent_cmd, estimated_height, 'mission')
-                elif state_machine.agent_type == 'latent':
-                    agent_cmd = controller_agent.predict(image_color)
-                    controller.step(agent_cmd, estimated_height, 'mission')
+                    data_logger.save_image('color', fast_loop.image_color)
+                    data_logger.save_image('depth', fast_loop.image_depth)
+                    data_logger.save_csv(fast_loop.drone_state.timestamp, fast_loop.drone_state.kinematics_estimated, fast_loop.pilot_cmd)
+            
+            # Update agent controller
+            if (not fast_loop.is_expert) and fast_loop.flight_mode == 'mission':
+                if agent_type == 'reg':
+                    fast_loop.agent_cmd = controller_agent.predict(fast_loop.image_color, fast_loop.image_depth, fast_loop.get_yaw_rate())
+                elif agent_type == 'latent':
+                    fast_loop.agent_cmd = controller_agent.predict(fast_loop.image_color)
                 else:
                     raise Exception('You must define an agent type!')
 
             # Update plots
             if train_mode == 'test':
-                if state_machine.is_expert:
-                    disp_handle.update(image_color, pilot_cmd, True)
+                if fast_loop.is_expert:
+                    disp_handle.update(fast_loop.image_color, fast_loop.pilot_cmd, True)
                 else:
-                    disp_handle.update(image_color, agent_cmd, False)
+                    disp_handle.update(fast_loop.image_color, fast_loop.agent_cmd, False)
             elif train_mode == 'train':
-                if dagger_type == 'vanilla' or dagger_type =='none':
-                    disp_handle.update(image_color, pilot_cmd, True)
-
+                if dagger_type == 'vanilla' or dagger_type == 'none':
+                    disp_handle.update(fast_loop.image_color, fast_loop.pilot_cmd, True)
                 elif dagger_type == 'hg':
-                    if state_machine.is_expert:
-                        disp_handle.update(image_color, pilot_cmd, True)
+                    if fast_loop.is_expert:
+                        disp_handle.update(fast_loop.image_color, fast_loop.pilot_cmd, True)
                     else:
-                        disp_handle.update(image_color, agent_cmd, False)
+                        disp_handle.update(fast_loop.image_color, fast_loop.agent_cmd, False)
                 else:
                     raise Exception('Unknown Dagger type: ' + dagger_type)
             else:
                 raise Exception('Unknown train_mode: ' + train_mode)
 
             if plot_2Dpos:
-                pos_handle.update(round(drone_state.kinematics_estimated.position.x_val, 3), 
-                                  round(drone_state.kinematics_estimated.position.y_val, 3))
+                pos_handle.update(round(fast_loop.drone_state.kinematics_estimated.position.x_val, 3), 
+                                  round(fast_loop.drone_state.kinematics_estimated.position.y_val, 3))
 
             # Ensure that the loop is running at a fixed rate
             elapsed_time = time.perf_counter() - start_time
@@ -235,13 +187,9 @@ if __name__ == '__main__':
                 time.sleep(1./loop_rate - elapsed_time)
 
             # for CV plotting
-            key = cv2.waitKey(1) & 0xFF
+            key = cv2.waitKey(10) & 0xFF
             if (key == 27 or key == ord('q')):
                 break
-            
-            # Manual reset
-            if (key==ord('k')):
-                reset()
 
     except Exception as error:
         print_msg(str(error), type=3)
@@ -250,11 +198,8 @@ if __name__ == '__main__':
         print('===============================')
         print('Clean up the code...')
         disp_handle.is_active = False
-        disp_handle.clean()
+        fast_loop.is_active = False
         joy.clean()
         if save_data:
             data_logger.clean()
-        client.armDisarm(False)
-        client.enableApiControl(False)
-        client.reset()
         print('Exit the program successfully!')

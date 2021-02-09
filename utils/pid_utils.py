@@ -1,10 +1,9 @@
-import numpy as np
 import time
 
 from utils import SecondOrderLowPass
 
 class PIDController():
-    def __init__(self, kp, ki, kd, scale, cutoff_freq=5, sample_freq=10):
+    def __init__(self, kp=1.0, ki=0.0, kd=0.0, scale=1.0, cutoff_freq=5.0, sample_freq=10.0):
         self.kp = kp
         self.ki = ki
         self.kd = kd
@@ -23,6 +22,7 @@ class PIDController():
         if not self.previous_set:
             self.previous_set = True
             self.previous_error = error
+            self.prev_time = time_now
             return 0.0
         
         proportional_gain = 0
@@ -42,7 +42,7 @@ class PIDController():
         self.previous_error = error
         self.prev_time = time_now
 
-        return self.scale*(proportional_gain + derivative_gain + integral_gain)
+        return self.scale * (proportional_gain + derivative_gain + integral_gain)
 
     def reset(self):
         self.prev_time = time.perf_counter()

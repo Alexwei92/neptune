@@ -2,13 +2,13 @@
 sim_params:
   loop_rate:                  10.0 # Hz
   output_path:                'my_datasets/peng/river/iter3' # save data to this path
-  save_data:                  False # {True, False}
+  save_data:                  True # {True, False}
 
   train_mode:                 'test' # {'train', 'test'}
   agent_type:                 'none' # {'none', 'reg', 'latent'}
   dagger_type:                'none' # {'none', 'vanilla', 'hg'}
 
-  initial_pose:               (0,0,5,0),(120,143,5,0),(56,66,5,0),(10,49,5,0),(45,112,5,0)         
+  initial_pose:               (0,0,5,0),(120,143,5,0),(56,66,5,0),(10,49,5,0),(45,112,5,0)      
                               # a set of (pos_x, pos_y, pos_z, yaw) 
                               # e.g. (115,181,5,0) in nh
                               
@@ -16,9 +16,9 @@ sim_params:
 ctrl_params:
   max_yawRate:                45.0 # deg/s
   forward_speed:              2.0  # m/s
-  height:                     5.0  # m
+  mission_height:             5.0  # m
   image_size:                 (480, 640) # Width x Height
-  use_rangefinder:            True # use rangefinder for terrain following
+  use_rangefinder:            False # use rangefinder for terrain following
   model_path:                 'my_outputs/peng/river/iter0' # model file path
 
 # RC/Joystick parameters
@@ -32,8 +32,8 @@ rc_params:
 # Visualize parameters
 visualize_params:
   plot_2Dpos:                 False # plot a 2D trajectory in a new window
-  plot_heading:               False # plot heading in the current window
-  plot_cmd:                   True # plot cmd in the current window
+  plot_heading:               True # plot heading in the current window
+  plot_cmd:                   False # plot cmd in the current window
 
 # Training parameters
 train_params:
@@ -60,7 +60,3 @@ train_params:
   latent_checkpoint_filename: 'latent_checkpoint.pt' # latent controller checkpoint file name
   latent_checkpoint_preload:  True # preload a latent controller checkpoint
   latent_model_filename:      'latent_model.pt' # save latent controller model to this file name
-
-
-
-

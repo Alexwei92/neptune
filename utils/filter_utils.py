@@ -2,10 +2,10 @@ import numpy as np
 
 class SecondOrderLowPass():
     def __init__(self, cutoff_freq, sample_freq):
-        self.a = np.empty((2,), dtype=np.float64)
-        self.b = np.empty((2,), dtype=np.float64)
-        self.i = np.empty((2,), dtype=np.float64)
-        self.o = np.empty((2,), dtype=np.float64)
+        self.a = np.empty((2,))
+        self.b = np.empty((2,))
+        self.i = np.empty((2,))
+        self.o = np.empty((2,))
 
         self.configure(cutoff_freq, sample_freq)
 
@@ -33,8 +33,6 @@ class SecondOrderLowPass():
         self.o[1] = self.o[0]
         self.o[0] = out
         return out
-        # return value
     
     def reset(self):
-        self.i = np.empty((2,), dtype=np.float64)
-        self.o = np.empty((2,), dtype=np.float64)
+        self.i = self.o = np.empty((2,))

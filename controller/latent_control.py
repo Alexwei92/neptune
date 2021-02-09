@@ -10,12 +10,11 @@ class LatentCtrl():
     '''
     Latent Controller
     '''
-    def __init__(self, **kwargs): 
+    def __init__(self, vae_model_path, latent_model_path, z_dim, img_resize): 
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        z_dim = kwargs.get('z_dim')
-        self.load_VAE_model(kwargs.get('vae_model_path'), z_dim)
-        self.load_latent_model(kwargs.get('latent_model_path'), z_dim)
-        self.resize = kwargs.get('image_resize')
+        self.load_VAE_model(vae_model_path, z_dim)
+        self.load_latent_model(latent_model_path, z_dim)
+        self.resize = img_resize
         print('The latent controller is initialized.')
 
     def load_VAE_model(self, file_path, z_dim):

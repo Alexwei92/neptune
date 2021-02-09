@@ -4,9 +4,11 @@ import os
 import shutil
 import csv
 import numpy as np
+import random
 
 import airsim
 from utils import *
+from controller import *
 
 PRECISION = 8 # decimal digits
 
@@ -48,29 +50,76 @@ def print_msg(msg, type=0):
     else:
         print(msg)
 
-# Reset the environment after collision
-def reset_environment(client, state_machine, initial_pose):
-    state_machine.set_collision()
-    client.reset()
-    client.enableApiControl(True)
-    client.armDisarm(True)
-    client.simSetVehiclePose(add_offset_to_pose(initial_pose), ignore_collison=True)
-
 ####
-class StateMachine():
+class FastLoop():
     '''
-    A high-level state machine
+    API Fast Loop
     '''
     # Init
-    def __init__(self, agent_type='none', train_mode='train'):
-        self.flight_mode = 'idle' # {idle, hover, mission}
-        self.agent_type = agent_type 
-        self.train_mode = train_mode
-        self.is_expert = True
+    def __init__(self, **kwargs):
+        # simulation
+        self.image_size = kwargs.get('image_size')
+        self.initial_pose = kwargs.get('initial_pose')
+        self.loop_rate = kwargs.get('loop_rate')
+        self.train_mode = kwargs.get('train_mode')
+        
+        # controller
+        self.agent_type = kwargs.get('agent_type') 
+        self.forward_speed = kwargs.get('forward_speed')
+        self.max_yawRate = kwargs.get('max_yawRate')
+        self.mission_height = kwargs.get('mission_height') 
+
+        # joystick
+        self.joy = kwargs.get('joystick')
+        self.yaw_axis = kwargs.get('yaw_axis')
+        self.mode_axis = kwargs.get('mode_axis')
+        self.type_axis = kwargs.get('type_axis')
+
+        # rangefinder
+        self.use_rangefinder = kwargs.get('use_rangefinder')
+        if self.use_rangefinder:
+            self.rangefinder = Rangefinder(cutoff_freq=2.0, sample_freq=self.loop_rate)
+        
+        # states and camera images
+        self.drone_state = None
+        self.estimated_height = None
+        self.image_color = None
+        self.image_depth = None
+        
+        # status and cmd
+        self.flight_mode = 'hover' # {hover, mission}
         self.has_collided = False
+        self.is_active = True
+        self.is_expert = True
+        self.pilot_cmd = 0.0
+        self.agent_cmd = 0.0
+        self.trigger_reset = False # to trigger external reset function
+
+        # Connect to the AirSim simulator
+        self.client = airsim.MultirotorClient()
+        self.client.confirmConnection()
+        
+        # Enable API control
+        self.client.enableApiControl(True)
+        self.client.armDisarm(True)
+
+        # Take-off
+        self.client.takeoffAsync()
+
+        # Initial pose
+        self.client.simSetVehiclePose(add_offset_to_pose(random.choice(self.initial_pose)), ignore_collison=True)
+        time.sleep(0.5)
+
+        # Controller Init
+        self.controller = Controller(self.client, 
+                    self.forward_speed,
+                    self.mission_height,
+                    self.max_yawRate,
+                    self.use_rangefinder)
 
     # Collision
     def set_collision(self):
+        self.trigger_reset = True
         if self.flight_mode is 'mission':
             print_msg('Collision occurred! API is reset to a random initial pose.', type=3)
             print_msg('Please reset the stick to its idle position first!', type=2)
@@ -78,10 +127,9 @@ class StateMachine():
             self.flight_mode = 'hover' # Hover by default
             print_msg('{:s} flight mode'.format(self.flight_mode.capitalize()))
         
-
     # Flight Mode
-    def set_flight_mode(self, x):
-        if x < -0.5:
+    def set_flight_mode(self, joy_input):
+        if joy_input < -0.5:
             new_mode = 'mission'
         else:
             new_mode = 'hover'
@@ -97,13 +145,10 @@ class StateMachine():
                 self.flight_mode = new_mode
                 print_msg('{:s} flight mode'.format(new_mode.capitalize()))
 
-    def get_flight_mode(self):
-        return self.flight_mode
-
     # Controller Type
-    def set_controller_type(self, x):
+    def set_controller_type(self, joy_input):
         if self.agent_type != 'none':
-            if x < -0.5:
+            if joy_input < -0.5:
                 is_expert = False
             else:
                 is_expert = True
@@ -115,9 +160,94 @@ class StateMachine():
                 else:
                     print_msg('Switch to agent control')
             
+    def get_yaw_rate(self):
+        return self.drone_state.kinematics_estimated.angular_velocity.z_val
 
-    def get_controller_type(self):
-        return self.is_expert
+    # Fast loop
+    def run(self):
+        while self.is_active:
+            start_time = time.perf_counter()
+
+            # Check collision
+            if self.client.simGetCollisionInfo().has_collided or (cv2.waitKey(10) & 0xFF)==ord('k'):
+                self.reset_api()
+
+            # Update pilot yaw command from RC/joystick
+            self.pilot_cmd = round(self.joy.get_input(self.yaw_axis), PRECISION)
+        
+            # Update flight mode from RC/joystick
+            self.set_flight_mode(self.joy.get_input(self.mode_axis))
+            
+            # Update controller type from RC/joystick
+            self.set_controller_type(self.joy.get_input(self.type_axis))
+
+            # Update state
+            try:
+                self.drone_state = self.client.getMultirotorState()
+            except:
+                pass # buffer issue
+            
+            # Update yaw
+            current_yaw = get_yaw_from_orientation(self.drone_state.kinematics_estimated.orientation)
+            self.controller.set_current_yaw(current_yaw)
+
+            # Update rangefinder
+            if self.use_rangefinder:
+                try:
+                    self.rangefinder_height = self.rangefinder.update(self.client.getDistanceSensorData().distance)
+                except:
+                    pass # buffer issue
+                estimated_height = self.rangefinder_height
+                # Update z velocity
+                self.controller.set_current_zvelocity(self.drone_state.kinematics_estimated.linear_velocity.z_val)
+            else:
+                estimated_height = self.mission_height
+
+            # Update images
+            camera_response = self.client.simGetImages([
+                # uncompressed RGB array bytes 
+                airsim.ImageRequest('0', airsim.ImageType.Scene, pixels_as_float=False, compress=False),
+                # floating point uncompressed image
+                airsim.ImageRequest('1', airsim.ImageType.DepthVis, pixels_as_float=True, compress=False)])
+            try:
+                self.image_color, self.image_depth = get_camera_images(camera_response, self.image_size)
+            except:
+                pass # buffer issue
+
+            # Update controller
+            if self.is_expert or self.flight_mode == 'hover':
+                try:
+                    self.controller.step(self.pilot_cmd, estimated_height, self.flight_mode)
+                except:
+                    pass
+            else:
+                self.controller.step(self.agent_cmd, estimated_height, 'mission')
+
+            # Constrain the loop rate
+            elapsed_time = time.perf_counter() - start_time
+            if elapsed_time > 1./self.loop_rate:
+                print_msg('The fast loop rate is {:.2f} Hz, expected {:.2f} Hz!'.format(1./elapsed_time, self.loop_rate), type=2)
+            else:
+                time.sleep(1./self.loop_rate - elapsed_time) 
+        
+        self.clean()
+
+    # Reset the API after collision
+    def reset_api(self):
+        self.set_collision()
+        self.client.reset()
+        self.client.enableApiControl(True)
+        self.client.armDisarm(True)
+        self.client.simSetVehiclePose(add_offset_to_pose(random.choice(self.initial_pose)), ignore_collison=True)      
+
+        if self.use_rangefinder:
+            self.rangefinder.reset()
+            self.controller.reset_pid()
+
+    def clean(self):
+        self.client.armDisarm(False)
+        self.client.enableApiControl(False)
+        self.client.reset()
 
 class Logger():
     '''
@@ -172,12 +302,13 @@ class Display():
     '''
     For displaying the window(s)
     '''
-    def __init__(self, image_size, max_yawRate, loop_rate=15, plot_heading=False, plot_cmd=False):
+    def __init__(self, image_size, max_yawRate, plot_heading=False, plot_cmd=False):
         self.is_active = True
         self.is_expert = True
         self.image = np.zeros((image_size[0], image_size[1], 4))
         self.max_yawRate = max_yawRate
-        self.dt = 1./loop_rate
+        loop_rate = 15.0 # update at 15 Hz
+        self.dt = 1./loop_rate 
         self.plot_heading = plot_heading
         self.plot_cmd = plot_cmd
         cv2.namedWindow('disp', cv2.WINDOW_NORMAL)
@@ -208,6 +339,7 @@ class Display():
                 plot_without_heading('disp', self.image)
 
             elapsed_time = time.perf_counter() - start_time
+            time.sleep(0.1)
             if elapsed_time > self.dt:
                 # this should never happen
                 print_msg('The visualize loop rate is too high, consider to reduce the rate!', type=2)
@@ -218,7 +350,6 @@ class Display():
     
     def clean(self):
         cv2.destroyAllWindows()
-
 
 class Controller():
     '''
@@ -291,7 +422,6 @@ class Rangefinder():
 
     def update(self, value):
         tmp = self.lowpassfilter.update(value)
-        print(tmp)
         return tmp
         
     def reset(self):
