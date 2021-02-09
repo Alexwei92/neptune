@@ -5,6 +5,46 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.signal import butter,filtfilt,lfilter
 
+class PIDController():
+    def __init__(self, kp, ki, kd):
+        self.kp = kp
+        self.ki = ki
+        self.kd = kd
+        self.prev_time = time.perf_counter()
+        self.previous_error = 0.0
+        self.previous_set = False
+        self.sum = 0.0
+        self.set_point = 0.0
+
+    def update(self, target_point, current_point):
+        time_now = time.perf_counter()
+        dt = time_now - self.prev_time
+        # dt = np.amax([dt, 0.01])
+
+        error = target_point - current_point
+        if not self.previous_set:
+            self.previous_set = True
+            self.previous_error = error
+            return 0
+        
+        if self.kp != 0:
+            proportional_gain = error * self.kp
+
+        if self.kd != 0:
+            derivative = (error - self.previous_error) / dt
+            derivative_gain = derivative * self.kd
+        
+        if self.ki != 0:
+            self.sum += error * dt
+            integral_gain = self.sum * self.ki
+
+        self.previous_error = error
+        self.prev_time = time_now
+
+        return proportional_gain + derivative_gain + integral_gain
+
+    def reset_integral(self):
+        self.sum = 0.0
 
 class Rangefinder():
     def __init__(self):
@@ -31,23 +71,16 @@ def apply_filter(data):
     y = lfilter(b, a, data)
     return y
 
+
+
 client = airsim.MultirotorClient()
 client.confirmConnection()
 client.enableApiControl(True)
 
 client.armDisarm(True)
 client.enableApiControl(False)
-# fig, ax = plt.subplots()
-# line1, = ax.plot([0], [0], label='rangefinder')
-# line2, = ax.plot([0], [0], label='true')
 
-# landed = client.getMultirotorState().landed_state
-# if landed == airsim.LandedState.Landed:
-#     print("taking off...")
-#     client.takeoffAsync()
-# else:
-#     print("already flying...")
-#     client.hoverAsync()
+
 
 rf = Rangefinder()
 
@@ -56,6 +89,8 @@ filter_height = []
 rangefinder_height = []
 rf_height = []
 i = 0
+
+
 while True:
     start_time = time.perf_counter()
     data = client.getDistanceSensorData().distance

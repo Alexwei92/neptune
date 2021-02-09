@@ -6,7 +6,7 @@ import csv
 import numpy as np
 
 import airsim
-from utils import plot_with_cmd, plot_with_heading, plot_without_heading
+from utils import *
 
 PRECISION = 8 # decimal digits
 
@@ -224,65 +224,75 @@ class Controller():
     '''
     A high-level controller class
     '''
-    def __init__(self, client, forward_speed, height, max_yawRate):
+    def __init__(self, client, forward_speed, height, max_yawRate, use_rangefinder=False):
         self.client = client
         self.forward_speed = forward_speed
         self.height = height
         self.max_yawRate = max_yawRate
         self.current_yaw = 0.0 # in radian
+        self.use_rangefinder = use_rangefinder # use rangefinder
+    
+        if use_rangefinder:
+            self.z_velocity = 0.0
+            self.zpos_pid = PIDController(kp=0.25, ki=0.0, kd=0.0, scale=6.0)
+            self.zvel_pid = PIDController(kp=2.0, ki=2.0, kd=0.0, scale=1.0)
 
     def set_current_yaw(self, yaw):
         self.current_yaw = yaw
 
-    def step(self, cmd, rangefinder_height, flight_mode):
+    def set_current_zvelocity(self, z_velocity):
+        self.z_velocity = -z_velocity
+
+    def step(self, cmd, estimated_height, flight_mode):
         yawRate = cmd * self.max_yawRate
-        height_diff = self.height - rangefinder_height 
-        throttle = 0.5 + 0.15*height_diff
-        print(0.5*height_diff)
 
-        if throttle > 1.0:
-            throttle = 1.0
-        if throttle < 0.0:
-            throttle = 0.0
+        if self.use_rangefinder:
+            zpos_output = self.zpos_pid.update(self.height, estimated_height)
+            zvel_output = -self.zvel_pid.update(zpos_output, self.z_velocity) # z axis is reversed
+            throttle = 0.5 + zvel_output
 
-        if flight_mode is 'hover':
+        if flight_mode == 'hover':
             # hover
-            # self.client.rotateByYawRateAsync(yaw_rate=yawRate, duration=1)
-            self.client.moveByRollPitchYawrateThrottleAsync(0, 0, yaw_rate=-yawRate,
-                                                 throttle=throttle, duration=1)
-
-        elif flight_mode is 'mission':
+            if self.use_rangefinder:
+                self.client.moveByVelocityAsync(vx=0, vy=0, 
+                                            vz=zvel_output,
+                                            duration=1,
+                                            yaw_mode=airsim.YawMode(True, yawRate))
+            else:
+                self.client.rotateByYawRateAsync(yaw_rate=yawRate, duration=1)
+        
+        elif flight_mode == 'mission':
             # forward flight
             vx = self.forward_speed * np.cos(self.current_yaw)
             vy = self.forward_speed * np.sin(self.current_yaw)
-            # self.client.moveByVelocityZAsync(vx=vx, vy=vy, 
-            #                                 z=-self.height,
-            #                                 duration=1,
-            #                                 yaw_mode=airsim.YawMode(True, yawRate))
-            self.client.moveByVelocityAsync(vx=vx, vy=vy, 
-                                vz=0,
-                                duration=1,
-                                yaw_mode=airsim.YawMode(True, yawRate))
+            if self.use_rangefinder:
+                self.client.moveByVelocityAsync(vx=vx, vy=vy, 
+                                    vz=zvel_output,
+                                    duration=1,
+                                    yaw_mode=airsim.YawMode(True, yawRate))
+            else:
+                self.client.moveByVelocityZAsync(vx=vx, vy=vy, 
+                                                z=-self.height,
+                                                duration=1,
+                                                yaw_mode=airsim.YawMode(True, yawRate))
         else:
             raise Exception('Unknown flight_mode: ' + flight_mode)
 
+    def reset_pid(self):
+        self.zpos_pid.reset()
+        self.zvel_pid.reset()
 
 class Rangefinder():
     '''
-    Rangefinder class
+    Rangefinder (distance sensor) class
     '''
-    def __init__(self, N=10):
-        self.N = 10
-        self.distance = np.array([])
+    def __init__(self, cutoff_freq=2, sample_freq=10):
+        self.lowpassfilter = SecondOrderLowPass(cutoff_freq, sample_freq)
 
-    def update(self, x):
-        if len(self.distance) < self.N:
-            self.distance = np.append(self.distance, x)
-        else:
-            self.distance = np.append(np.delete(self.distance, 0), x)
-
-    def get_filtered_height(self):
-        return np.mean(self.distance)
-
+    def update(self, value):
+        tmp = self.lowpassfilter.update(value)
+        print(tmp)
+        return tmp
+        
     def reset(self):
-        self.distance = np.array([])
+        self.lowpassfilter.reset()

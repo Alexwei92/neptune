@@ -41,6 +41,7 @@ if __name__ == '__main__':
     forward_speed = config['ctrl_params']['forward_speed']
     height = config['ctrl_params']['height']
     image_size = eval(config['ctrl_params']['image_size'])
+    use_rangefinder = config['ctrl_params']['use_rangefinder']
     model_path = config['ctrl_params']['model_path']
 
     # Joystick/RC settings
@@ -55,7 +56,7 @@ if __name__ == '__main__':
     plot_2Dpos = config['visualize_params']['plot_2Dpos']
 
     # Controller Init
-    controller = Controller(client, forward_speed, height, max_yawRate)
+    controller = Controller(client, forward_speed, height, max_yawRate, use_rangefinder)
 
     if agent_type == 'reg':
         # Linear regression controller
@@ -87,7 +88,8 @@ if __name__ == '__main__':
     state_machine = StateMachine(agent_type, train_mode)
 
     # Rangfinder Init
-    rangefinder = Rangefinder()
+    if use_rangefinder:
+        rangefinder = Rangefinder()
 
     # Visualize Init
     disp_handle = Display(image_size, max_yawRate, loop_rate, plot_heading, plot_cmd) 
@@ -103,13 +105,16 @@ if __name__ == '__main__':
     # Reset function
     def reset():
         reset_environment(client, state_machine, random.choice(initial_pose))
-        rangefinder.reset()
+
         if state_machine.agent_type == 'reg':
             controller_agent.reset_prvs()
         if save_data:
             data_logger.reset_folder()
         if plot_2Dpos:
             pos_handle.reset()
+        if use_rangefinder:
+            controller.reset_pid()
+            rangefinder.reset()
 
     '''
     Main Code
@@ -140,10 +145,6 @@ if __name__ == '__main__':
 
             # Get Multirotor estimated states
             drone_state = client.getMultirotorState()
-
-            # Update rangefinder height
-            rangefinder_distance = client.getDistanceSensorData().distance
-            rangefinder.update(rangefinder_distance)
 
             # Update pilot yaw command from RC/joystick
             pilot_cmd = joy.get_input(yaw_axis)
@@ -181,17 +182,24 @@ if __name__ == '__main__':
             current_yaw = get_yaw_from_orientation(drone_state.kinematics_estimated.orientation)
             controller.set_current_yaw(current_yaw)
 
+            # Update rangefinder and z_velocity
+            if use_rangefinder:
+                estimated_height = rangefinder.update(client.getDistanceSensorData().distance)
+                controller.set_current_zvelocity(drone_state.kinematics_estimated.linear_velocity.z_val)
+            else:
+                estimated_height = height
+
             if state_machine.is_expert or state_machine.flight_mode == 'hover':
-                controller.step(pilot_cmd, rangefinder.get_filtered_height(), state_machine.get_flight_mode())
+                controller.step(pilot_cmd, estimated_height, state_machine.get_flight_mode())
                 agent_cmd = pilot_cmd
             else:
                 if state_machine.agent_type == 'reg':
                     yawRate = drone_state.kinematics_estimated.angular_velocity.z_val
                     agent_cmd = controller_agent.predict(image_color, image_depth, yawRate)
-                    controller.step(agent_cmd, rangefinder.get_filtered_height(), 'mission')
+                    controller.step(agent_cmd, estimated_height, 'mission')
                 elif state_machine.agent_type == 'latent':
                     agent_cmd = controller_agent.predict(image_color)
-                    controller.step(agent_cmd, rangefinder.get_filtered_height(), 'mission')
+                    controller.step(agent_cmd, estimated_height, 'mission')
                 else:
                     raise Exception('You must define an agent type!')
 
@@ -219,6 +227,13 @@ if __name__ == '__main__':
                 pos_handle.update(round(drone_state.kinematics_estimated.position.x_val, 3), 
                                   round(drone_state.kinematics_estimated.position.y_val, 3))
 
+            # Ensure that the loop is running at a fixed rate
+            elapsed_time = time.perf_counter() - start_time
+            if (1./loop_rate - elapsed_time) < 0.0:
+                print_msg('The main loop rate {:.2f} Hz is below {:.2f} Hz, consider to reduce the rate!'.format(1./elapsed_time, loop_rate), type=2)
+            else:
+                time.sleep(1./loop_rate - elapsed_time)
+
             # for CV plotting
             key = cv2.waitKey(1) & 0xFF
             if (key == 27 or key == ord('q')):
@@ -227,13 +242,6 @@ if __name__ == '__main__':
             # Manual reset
             if (key==ord('k')):
                 reset()
-
-            # Ensure that the loop is running at a fixed rate
-            elapsed_time = time.perf_counter() - start_time
-            if (1./loop_rate - elapsed_time) < 0.0:
-                print_msg('The main loop rate {:.2f} Hz is below {:.2f} Hz, consider to reduce the rate!'.format(1./elapsed_time, loop_rate), type=2)
-            else:
-                time.sleep(1./loop_rate - elapsed_time)
 
     except Exception as error:
         print_msg(str(error), type=3)

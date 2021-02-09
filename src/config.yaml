@@ -17,7 +17,8 @@ ctrl_params:
   max_yawRate:                45.0 # deg/s
   forward_speed:              2.0  # m/s
   height:                     5.0  # m
-  image_size:                 (480, 640) # Width x Height 
+  image_size:                 (480, 640) # Width x Height
+  use_rangefinder:            True # use rangefinder for terrain following
   model_path:                 'my_outputs/peng/river/iter0' # model file path
 
 # RC/Joystick parameters
