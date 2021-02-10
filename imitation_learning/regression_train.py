@@ -84,7 +84,7 @@ class RegTrain_single():
             for color_file, depth_file in zip(file_list_color, file_list_depth):
                 image_color = cv2.imread(color_file, cv2.IMREAD_UNCHANGED)
                 image_depth = cv2.imread(depth_file, cv2.IMREAD_UNCHANGED)
-                tic = time.perf_counter()
+                # tic = time.perf_counter()
                 X[i,:] = self.feature_agent.step(image_color, image_depth)
                 # print('elapsed time: {:.4f}'.format(time.perf_counter()-tic))
                 self.feature_agent.reset()
@@ -135,7 +135,7 @@ class RegTrain_multi():
     '''
     Linear Regression Training Agent in multiple cores
     '''
-    def __init__(self, folder_path, image_size, preload=False, printout=False):
+    def __init__(self, folder_path, output_dir, image_size, preload=False, printout=False):
         self.image_size = image_size
         self.cmd_numprvs = feature_config['CMD_NUMPRVS']
         self.cmd_decay = feature_config['CMD_DECAY']
@@ -168,7 +168,11 @@ class RegTrain_multi():
             self.X = np.concatenate((self.X, X), axis=0)
             self.y = np.concatenate((self.y, y), axis=0)
 
+        # Train the model
         self.train()
+        
+        # Save the weight to file
+        self.save_weight(os.path.join(output_dir, 'reg_weight.csv'))
 
     def get_sample(self, file_list_color, file_list_depth, folder_path, preload):
         file_path = os.path.join(folder_path, 'feature_preload.pkl')
@@ -221,6 +225,7 @@ class RegTrain_multi():
         
     def train(self):
         self.calculate_weight()
+        print('Trained linear regression model successfully.')
 
     def save_weight(self, file_path):
         np.savetxt(file_path, self.weight, delimiter=',')

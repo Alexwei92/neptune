@@ -68,37 +68,16 @@ if __name__ == '__main__':
 
         plt.show()
 
-    # cmd location in telemetry data
-    # cmd_index = config['train_params']['cmd_index']
-
     # 1) Linear Regression
     if train_reg:
         print('======= Linear Regression Controller =========')
         image_size = eval(config['ctrl_params']['image_size'])
         preload_sample = config['train_params']['preload_sample']
-        
-        # Create the agent
-        # tic = time.perf_counter()
-        # tmp1 = mp.Process(target=RegTrain_single, args=(dataset_dir, image_size, preload_sample, False))
-        # reg_agent1 = RegTrain_single(dataset_dir, image_size, preload_sample, False)
-        # tmp1.start()
-        # tmp1.join()
-        # print('Single core time: ', time.perf_counter() - tic)
-        # reg_agent1.train()
 
-        tic = time.perf_counter()
-        tmp2 = mp.Process(target=RegTrain_multi, args=(dataset_dir, image_size, preload_sample, False))
-        #reg_agent2 = RegTrain_multi(dataset_dir, image_size, preload_sample, False)
-        tmp2.start()
-        tmp2.join()
-        print('Multi core time: ', time.perf_counter() - tic)
-
-        # Train the model
-        #reg_agent2.train()
-        print('Trained linear regression model successfully.')
-
-        # Save weight to file
-        # reg_agent2.save_weight(os.path.join(output_dir, 'reg_weight.csv'))
+        # Multiprocessing agent
+        proc = mp.Process(target=RegTrain_multi, args=(dataset_dir, output_dir, image_size, preload_sample, False))
+        proc.start()
+        proc.join()
 
     # 2) VAE
     if train_vae:

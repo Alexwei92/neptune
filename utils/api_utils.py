@@ -421,8 +421,7 @@ class Rangefinder():
         self.lowpassfilter = SecondOrderLowPass(cutoff_freq, sample_freq)
 
     def update(self, value):
-        tmp = self.lowpassfilter.update(value)
-        return tmp
+        return self.lowpassfilter.update(value)
         
     def reset(self):
         self.lowpassfilter.reset()
