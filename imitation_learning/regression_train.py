@@ -144,7 +144,7 @@ class RegTrain_multi():
         self.y = np.empty((0,))
         
         jobs = []
-        pool = mp.Pool(12) # use how many cores
+        pool = mp.Pool(min(12, mp.cpu_count())) # use how many cores
         for subfolder in os.listdir(folder_path):
             subfolder_path = os.path.join(folder_path, subfolder)
             file_list_color = glob.glob(os.path.join(subfolder_path, 'color', '*.png'))
@@ -160,13 +160,14 @@ class RegTrain_multi():
 
         # Visual feature
         for X, y in results:
-            # ensure that there is no inf term
-            if np.sum(X==np.inf) > 0:
-                print('*** Got Inf in the feature vector!')
-                X[X==np.inf] = 0
-        
-            self.X = np.concatenate((self.X, X), axis=0)
-            self.y = np.concatenate((self.y, y), axis=0)
+            if y is not None:
+                # ensure that there is no inf term
+                if np.sum(X==np.inf) > 0:
+                    print('*** Got Inf in the feature vector!')
+                    X[X==np.inf] = 0
+            
+                self.X = np.concatenate((self.X, X), axis=0)
+                self.y = np.concatenate((self.y, y), axis=0)
 
         # Train the model
         self.train()
@@ -175,34 +176,43 @@ class RegTrain_multi():
         self.save_weight(os.path.join(output_dir, 'reg_weight.csv'))
 
     def get_sample(self, file_list_color, file_list_depth, folder_path, preload):
-        file_path = os.path.join(folder_path, 'feature_preload.pkl')
-        feature_agent = FeatureExtract(feature_config, self.image_size)
-
-        if preload and os.path.isfile(file_path):
-            X = pandas.read_pickle(file_path).to_numpy()
-        else:
-            X = np.zeros((len(file_list_color), feature_agent.get_size()))
-            i = 0
-            for color_file, depth_file in zip(file_list_color, file_list_depth):
-                image_color = cv2.imread(color_file, cv2.IMREAD_UNCHANGED)
-                image_depth = cv2.imread(depth_file, cv2.IMREAD_UNCHANGED)
-                X[i,:] = feature_agent.step(image_color, image_depth)
-                i += 1
-
-            # save to file for the future use
-            pandas.DataFrame(X).to_pickle(file_path) 
-        
         # read from telemetry file
         X_extra, y = self.read_telemetry(folder_path)
-        X = np.column_stack((X, X_extra))
+        
+        if y is not None:
+            file_path = os.path.join(folder_path, 'feature_preload.pkl')
+            feature_agent = FeatureExtract(feature_config, self.image_size)
 
-        print('Load samples from {:s} successfully.'.format(folder_path))  
-        return X, y
+            if preload and os.path.isfile(file_path):
+                X = pandas.read_pickle(file_path).to_numpy()
+            else:
+                X = np.zeros((len(file_list_color), feature_agent.get_size()))
+                i = 0
+                for color_file, depth_file in zip(file_list_color, file_list_depth):
+                    print(color_file)
+                    image_color = cv2.imread(color_file, cv2.IMREAD_UNCHANGED)
+                    image_depth = cv2.imread(depth_file, cv2.IMREAD_UNCHANGED)
+                    X[i,:] = feature_agent.step(image_color, image_depth)
+                    i += 1
+
+                # save to file for the future use
+                pandas.DataFrame(X).to_pickle(file_path) 
+        
+            X = np.column_stack((X, X_extra))
+            print('Load samples from {:s} successfully.'.format(folder_path))  
+            return X, y
+        else:
+            return None, None
 
     def read_telemetry(self, folder_path):
         # read telemetry csv       
         telemetry_data = pandas.read_csv(os.path.join(folder_path, 'airsim.csv'))
-        y = telemetry_data['yaw_cmd'].to_numpy()
+        # print(telemetry_data.iloc[-1,0] == 'crashed')
+        if telemetry_data.iloc[-1,0] == 'crashed':
+            print(folder_path)
+            return None, None
+
+        y = telemetry_data['yaw_cmd'][:-1].to_numpy()
 
         # Previous commands with time decaying
         cmd_numprvs = self.cmd_numprvs
@@ -215,7 +225,7 @@ class RegTrain_multi():
                     y_prvs[i,j] = y[i-(j+1)] * cmd_decay**(j+1)
 
         # Yaw rate
-        yawRate = np.reshape(telemetry_data['yaw_rate'].to_numpy(), (-1,1))  # yaw rate
+        yawRate = np.reshape(telemetry_data['yaw_rate'][:-1].to_numpy(), (-1,1))  # yaw rate
         X_extra = np.concatenate((y_prvs, yawRate), axis=1)
         return X_extra, y
 

@@ -5,6 +5,7 @@ import shutil
 import csv
 import numpy as np
 import random
+import colorama
 
 import airsim
 from utils import *
@@ -39,14 +40,18 @@ def get_camera_images(camera_response, image_size):
     return image_color, image_depth
 
 # Colored print out
+colorama.init()
 def print_msg(msg, type=0):
     # type = {0:Default, 1:Status, 2:Warning, 3:Error}
     if type == 1:
-        print('\033[37;42m' + msg + '\033[m')
+        # print('\033[37;42m' + msg + '\033[m')
+        print(colorama.Back.GREEN + colorama.Fore.WHITE + msg + colorama.Style.RESET_ALL)
     elif type == 2:
-        print('\033[33m' + '[WARNING] ' + msg + '\033[m')
+        # print('\033[33m' + '[WARNING] ' + msg + '\033[m')
+        print(colorama.Fore.YELLOW + '[WARNING] ' + msg + colorama.Style.RESET_ALL)
     elif type == 3:
-        print('\033[31m' + '[ERROR] ' + msg + '\033[m')
+        # print('\033[31m' + '[ERROR] ' + msg + '\033[m')
+        print(colorama.Fore.RED + '[ERROR] ' + msg + colorama.Style.RESET_ALL)
     else:
         print(msg)
 
@@ -94,6 +99,7 @@ class FastLoop():
         self.pilot_cmd = 0.0
         self.agent_cmd = 0.0
         self.trigger_reset = False # to trigger external reset function
+        self.force_reset = False # from external to force reset
         self.manual_stop = False # if pilot stop the mission
 
         # Connect to the AirSim simulator
@@ -172,8 +178,13 @@ class FastLoop():
             start_time = time.perf_counter()
 
             # Check collision
-            if self.client.simGetCollisionInfo().has_collided or (cv2.waitKey(10) & 0xFF)==ord('k'):
+            if self.client.simGetCollisionInfo().has_collided:
                 self.reset_api()
+
+            # Force Reset
+            if self.force_reset:
+                self.reset_api()
+                self.force_reset = False
 
             # Update pilot yaw command from RC/joystick
             self.pilot_cmd = round(self.joy.get_input(self.yaw_axis), PRECISION)
@@ -293,8 +304,8 @@ class Logger():
         self.filewriter.writerow(values)
         self.index += 1
 
-    def reset_folder(self, crash=False):
-        if crash:
+    def reset_folder(self, crashed=False):
+        if crashed:
             self.filewriter.writerow(['crashed'])
         else:
             self.filewriter.writerow(['safe'])
@@ -358,7 +369,8 @@ class Display():
         self.clean()
     
     def clean(self):
-        cv2.destroyAllWindows()
+        pass
+        # cv2.destroyAllWindows()
 
 class Controller():
     '''

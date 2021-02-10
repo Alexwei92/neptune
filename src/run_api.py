@@ -192,9 +192,12 @@ if __name__ == '__main__':
                 time.sleep(1./loop_rate - elapsed_time)
 
             # for CV plotting
-            key = cv2.waitKey(10) & 0xFF
+            key = cv2.waitKey(1) & 0xFF
             if (key == 27 or key == ord('q')):
                 break
+
+            if (key == ord('k')):
+                fast_loop.force_reset = True
 
     except Exception as error:
         print_msg(str(error), type=3)
