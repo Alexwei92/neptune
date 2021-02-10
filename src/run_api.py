@@ -106,7 +106,7 @@ if __name__ == '__main__':
         if fast_loop.agent_type == 'reg':
             controller_agent.reset_prvs()
         if save_data:
-            data_logger.reset_folder()
+            data_logger.reset_folder(crashed=True)
         if plot_2Dpos:
             pos_handle.reset()
 
@@ -132,23 +132,28 @@ if __name__ == '__main__':
             if fast_loop.trigger_reset:
                 reset()
                 fast_loop.trigger_reset = False
+
+            # Data logging
+            if save_data:
+                if fast_loop.manual_stop:
+                    data_logger.reset_folder(crashed=False)
+                    fast_loop.manual_stop = False
+
+                if fast_loop.flight_mode == 'mission':
+                    if (dagger_type == 'hg') and (not fast_loop.is_expert):
+                        # in Hg-dagger, only log data in manual mode
+                        pass
+                    else:
+                        data_logger.save_image('color', fast_loop.image_color)
+                        data_logger.save_image('depth', fast_loop.image_depth)
+                        data_logger.save_csv(fast_loop.drone_state.timestamp, fast_loop.drone_state.kinematics_estimated, fast_loop.pilot_cmd)
             
             # for regression controller:
             if fast_loop.is_expert and agent_type == 'reg':
                 controller_agent.reset_prvs()
 
-            # Data logging
-            if save_data and fast_loop.flight_mode == 'mission':
-                if (dagger_type == 'hg') and (not fast_loop.is_expert):
-                    # in Hg-dagger, only log data in manual mode
-                    pass
-                else:
-                    data_logger.save_image('color', fast_loop.image_color)
-                    data_logger.save_image('depth', fast_loop.image_depth)
-                    data_logger.save_csv(fast_loop.drone_state.timestamp, fast_loop.drone_state.kinematics_estimated, fast_loop.pilot_cmd)
-            
-            # Update agent controller
-            if (not fast_loop.is_expert) and fast_loop.flight_mode == 'mission':
+            # Update agent controller command
+            if (not fast_loop.is_expert) and (fast_loop.flight_mode == 'mission'):
                 if agent_type == 'reg':
                     fast_loop.agent_cmd = controller_agent.predict(fast_loop.image_color, fast_loop.image_depth, fast_loop.get_yaw_rate())
                 elif agent_type == 'latent':

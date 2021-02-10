@@ -1,6 +1,0 @@
-TODO:
-
-1) put state machine and rangefinder in a new thread (done)
-2) multiprocessing feature extract code in different folders (done)
-3) multiprocessing feature extract code in different components (tested, not working as expected, done)
-

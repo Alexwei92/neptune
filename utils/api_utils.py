@@ -50,7 +50,7 @@ def print_msg(msg, type=0):
     else:
         print(msg)
 
-####
+#
 class FastLoop():
     '''
     API Fast Loop
@@ -94,6 +94,7 @@ class FastLoop():
         self.pilot_cmd = 0.0
         self.agent_cmd = 0.0
         self.trigger_reset = False # to trigger external reset function
+        self.manual_stop = False # if pilot stop the mission
 
         # Connect to the AirSim simulator
         self.client = airsim.MultirotorClient()
@@ -141,9 +142,11 @@ class FastLoop():
                 self.has_collided = False
                 print_msg("Ready to fly!", type=1)
         else:
-            if new_mode != self.flight_mode:
+            if new_mode is not self.flight_mode:
                 self.flight_mode = new_mode
                 print_msg('{:s} flight mode'.format(new_mode.capitalize()))
+                if new_mode is 'hover':
+                    self.manual_stop = True
 
     # Controller Type
     def set_controller_type(self, joy_input):
@@ -216,6 +219,7 @@ class FastLoop():
 
             # Update controller
             if self.is_expert or self.flight_mode == 'hover':
+                self.agent_cmd = self.pilot_cmd
                 try:
                     self.controller.step(self.pilot_cmd, estimated_height, self.flight_mode)
                 except:
@@ -289,7 +293,12 @@ class Logger():
         self.filewriter.writerow(values)
         self.index += 1
 
-    def reset_folder(self):
+    def reset_folder(self, crash=False):
+        if crash:
+            self.filewriter.writerow(['crashed'])
+        else:
+            self.filewriter.writerow(['safe'])
+
         self.clean()
         self.configure_folder()
         
