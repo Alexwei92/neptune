@@ -79,10 +79,10 @@ class LatentDataset(Dataset):
             yawRate = telemetry_data['yaw_rate'][:-1].to_numpy(dtype=np.float32)
             # Previous commands with time decaying
             y_prvs = np.zeros((len(y), num_prvs), dtype=np.float32)
+            prvs_index = [5,4,3,2,1]
             for i in range(len(y)):
                 for j in range(num_prvs):
-                    if i > j:
-                        y_prvs[i,j] = y[i-(j+1)] * 0.8**(j+1)
+                    y_prvs[i,j] = y[max(i-prvs_index[j], 0)]
 
             self.state_extra = np.concatenate((self.state_extra, np.column_stack((yawRate, y_prvs))), axis=0)
 

@@ -16,7 +16,8 @@ class LatentCtrl():
         self.load_latent_model(latent_model_path, z_dim, num_prvs)
         self.resize = img_resize
         self.num_prvs = num_prvs
-        self.cmd_prvs = np.zeros((num_prvs,), dtype=np.float32)
+        self.prvs_index = [5,4,3,2,1]
+        self.cmd_prvs = np.zeros(max(self.prvs_index), dtype=np.float32)
         print('The latent controller is initialized.')
 
     def load_VAE_model(self, file_path, z_dim):
@@ -40,8 +41,10 @@ class LatentCtrl():
         self.latent_model.eval()
         with torch.no_grad():
             z = self.VAE_model.get_latent(image_tensor.to(self.device))
-            self.cmd_prvs *= 0.8 # decaying
-            state_extra = np.append(yawRate, self.cmd_prvs).astype(np.float32)
+            state_extra = yawRate
+            for index in self.prvs_index:
+                state_extra = np.append(state_extra, self.cmd_prvs[index-1])
+            state_extra = state_extra.astype(np.float32)
             data = torch.cat([z, torch.from_numpy(state_extra).unsqueeze(0).to(self.device)], axis=1)
             y = self.latent_model(data)
             y = y.cpu().item()
@@ -55,10 +58,10 @@ class LatentCtrl():
         if y < -1.0:
             y = -1.0
 
-        for i in reversed(range(1,self.num_prvs)):
+        for i in reversed(range(1,len(self.cmd_prvs))):
             self.cmd_prvs[i] = self.cmd_prvs[i-1]
         self.cmd_prvs[0] = y
-        
+
         return y
     
     def reset_prvs(self):

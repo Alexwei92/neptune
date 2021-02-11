@@ -12,7 +12,8 @@ class RegCtrl():
         self.load_weight_from_file(weight_file_path)
         self.feature_agent = FeatureExtract(feature_config, image_size, printout)
         self.num_prvs = num_prvs
-        self.prvs_index = exponential_decay(num_prvs)
+        # self.prvs_index = exponential_decay(num_prvs)
+        self.prvs_index = [5,4,3,2,1]
         self.cmd_prvs = np.zeros((max(self.prvs_index),))
         print('The linear regression controller is initialized.')
 
@@ -22,8 +23,8 @@ class RegCtrl():
 
     def predict(self, image_color, image_depth, yawRate):
         X = self.feature_agent.step(image_color, image_depth)
-
-        X = [np.append(X, self.cmd_prvs[index-1]) for index in self.prvs_index]
+        for index in self.prvs_index:
+            X = np.append(X, self.cmd_prvs[index-1])
         X = np.append(X, yawRate)
         y = np.dot(self.weight[1:], X)
         y += self.weight[0]

@@ -73,8 +73,9 @@ if __name__ == '__main__':
     # Control Agent Init
     if agent_type == 'reg':
         # Linear regression controller
+        reg_num_prvs = config['train_params']['reg_num_prvs']
         reg_weight_path = os.path.join(setup_path.parent_dir, model_path, 'reg_weight.csv')
-        controller_agent = RegCtrl(image_size, reg_weight_path, printout=False)
+        controller_agent = RegCtrl(reg_num_prvs, image_size, reg_weight_path, printout=False)
     elif agent_type == 'latent':
         # Latent NN controller
         z_dim = config['train_params']['z_dim']

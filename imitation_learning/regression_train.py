@@ -130,7 +130,8 @@ class RegTrain_single():
 
         # Previous commands with time decaying
         y_prvs = np.zeros((len(y), self.num_prvs))
-        prvs_index = exp_decay(self.num_prvs)
+        # prvs_index = exp_decay(self.num_prvs)
+        prvs_index = [5,4,3,2,1]
         
         for i in range(len(y)):
             for j in range(self.num_prvs):
