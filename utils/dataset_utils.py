@@ -5,6 +5,7 @@ import glob
 import cv2
 from torch.utils.data import Dataset
 import numpy as np
+import pandas
 
 def normalize_image(image):
     # Assume input image is uint8 type
@@ -56,14 +57,35 @@ class LatentDataset(Dataset):
     '''
     Latent Variable Dataset Class in Numpy
     '''
-    def __init__(self, folder_path, cmd_index, resize, n_chan=3, preload=True):
+    def __init__(self, folder_path, num_prvs, resize, n_chan=3, preload=True):
         self.folder_path = folder_path
         self.images_np = np.empty((0, resize[0], resize[1], n_chan), dtype=np.float32)
-        self.data = np.empty((0,), dtype=np.float32)
+        self.output = np.empty((0,), dtype=np.float32)
+        self.state_extra = np.empty((0, cmd_numprvs+1), dtype=np.float32)
 
         for subfolder in os.listdir(folder_path):
             subfolder_path = os.path.join(folder_path, subfolder)
             print(subfolder_path)
+            # Read telemetry file
+            telemetry_data = pandas.read_csv(os.path.join(subfolder_path, 'airsim.csv'))
+            if telemetry_data.iloc[-1,0] == 'crashed':
+                # print(subfolder_path)
+                continue
+                
+            # yaw cmd
+            y = telemetry_data['yaw_cmd'][:-1].to_numpy(dtype=np.float32)
+            self.output = np.concatenate((self.output, y), axis=0)
+            # Yaw rate
+            yawRate = telemetry_data['yaw_rate'][:-1].to_numpy(dtype=np.float32)
+            # Previous commands with time decaying
+            y_prvs = np.zeros((len(y), num_prvs), dtype=np.float32)
+            for i in range(len(y)):
+                for j in range(num_prvs):
+                    if i > j:
+                        y_prvs[i,j] = y[i-(j+1)] * 0.8**(j+1)
+
+            self.state_extra = np.concatenate((self.state_extra, np.column_stack((yawRate, y_prvs))), axis=0)
+
             default_filepath = os.path.join(subfolder_path, 'image_data_preload.pt')
             if preload and os.path.isfile(default_filepath):
                 images_np = torch.load(default_filepath)
@@ -83,19 +105,11 @@ class LatentDataset(Dataset):
 
             self.images_np = np.concatenate((self.images_np, images_np), axis=0)
 
-            # Read telemetry file
-            data = np.genfromtxt(os.path.join(subfolder_path, 'airsim.csv'),
-                                    delimiter=',', skip_header=True, dtype=np.float32)
-            data = data[:, cmd_index]
-
-            self.data = np.concatenate((self.data, data), axis=0)
-
-
     def __len__(self):
-        return len(self.data)
+        return len(self.output)
 
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        return self.images_np[idx, :].transpose((2,1,0)), self.data[idx]
+        return self.images_np[idx, :].transpose((2,1,0)), self.state_extra[idx, :], self.output[idx]

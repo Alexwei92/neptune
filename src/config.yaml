@@ -1,14 +1,14 @@
 # Simulation parameters
 sim_params:
   loop_rate:                  10.0 # Hz
-  output_path:                'my_datasets/peng/river/iter3' # save data to this path
-  save_data:                  True # {True, False}
+  output_path:                'my_datasets/peng/river/iter0' # save data to this path
+  save_data:                  False # {True, False}
 
   train_mode:                 'test' # {'train', 'test'}
   agent_type:                 'none' # {'none', 'reg', 'latent'}
   dagger_type:                'none' # {'none', 'vanilla', 'hg'}
 
-  initial_pose:               (0,0,5,0),(120,143,5,0),(56,66,5,0),(10,49,5,0),(45,112,5,0) 
+  initial_pose:               (0,0,5,0),(0,0,5,0)
                               # (0,0,5,0),(120,143,5,0),(56,66,5,0),(10,49,5,0),(45,112,5,0) 
                               # a set of (pos_x, pos_y, pos_z, yaw) 
                               # e.g. (115,181,5,0) in nh
@@ -33,7 +33,7 @@ rc_params:
 # Visualize parameters
 visualize_params:
   plot_2Dpos:                 False # plot a 2D trajectory in a new window
-  plot_heading:               False # plot heading in the current window
+  plot_heading:               True # plot heading in the current window
   plot_cmd:                   False # plot cmd in the current window
 
 # Training parameters
@@ -45,19 +45,23 @@ train_params:
 
   train_reg:                  True # enable train linear regression weights
   preload_sample:             True # preload samples from file
+  reg_num_prvs:               5 # number of previous cmd to use
 
   train_vae:                  False # enable train VAE model
-  z_dim:                      10 # latent dimension
+  z_dim:                      15 # latent dimension
   img_resize:                 (64, 64) # resize image before VAE, right now only support (64, 64)
-  vae_n_epochs:               100 # number of epochs
+  vae_n_epochs:               200 # number of epochs
   vae_batch_size:             32 # batch size
-  vae_checkpoint_filename:    'vae_checkpoint.pt' # checkpoint file name
+  vae_checkpoint_filename:    'vae_checkpoint_z_15.pt' # checkpoint file name
   vae_checkpoint_preload:     True # preload a VAE checkpoint
-  vae_model_filename:         'vae_model.pt' # save VAE model to this file name
+  vae_model_filename:         'vae_model_z_15.pt' # save VAE model to this file name
+  vae_learning_rate:          0.001 # learning rate
 
   train_latent:               False  # enable train latent controller network model
-  latent_n_epochs:            400 # number of epochs
+  latent_n_epochs:            200 # number of epochs
   latent_batch_size:          32 # batch size
-  latent_checkpoint_filename: 'latent_checkpoint.pt' # latent controller checkpoint file name
-  latent_checkpoint_preload:  True # preload a latent controller checkpoint
-  latent_model_filename:      'latent_model.pt' # save latent controller model to this file name
+  latent_checkpoint_filename: 'latent_checkpoint_z_15.pt' # latent controller checkpoint file name
+  latent_checkpoint_preload:  False # preload a latent controller checkpoint
+  latent_model_filename:      'latent_model_z_15.pt' # save latent controller model to this file name
+  latent_num_prvs:            5 # number of previous cmd to use
+  latent_learning_rate:       0.001 # learning rate

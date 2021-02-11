@@ -135,9 +135,9 @@ def plot_train_losses(train_history):
 
         fig, ax = plt.subplots(1,1)
         ax.plot(train_counter, train_losses, color='blue')
-        ax.legend(['Total Loss'], loc='upper right')
+        ax.legend(['MSE Loss'], loc='upper right')
         plt.xlabel('# of training samples')
         plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
-        plt.title('Latent Control training result')
+        plt.title('NN Control training result')
     else:
         pass

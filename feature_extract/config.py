@@ -22,7 +22,4 @@ feature_config = {
         "S5R5",
         "R5R5",
     ],
-
-    'CMD_NUMPRVS': 5,       # number of previous commands
-    'CMD_DECAY': 0.8        # exponential time decaying constant
 }

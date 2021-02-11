@@ -8,3 +8,4 @@ msgpack-rpc-python
 pygame
 PyYAML
 pandas
+colorama

@@ -79,9 +79,10 @@ if __name__ == '__main__':
         # Latent NN controller
         z_dim = config['train_params']['z_dim']
         img_resize = eval(config['train_params']['img_resize'])
-        vae_model_path = os.path.join(setup_path.parent_dir, model_path, 'vae_model.pt')
-        latent_model_path = os.path.join(setup_path.parent_dir, model_path, 'latent_model.pt')
-        controller_agent = LatentCtrl(vae_model_path, latent_model_path, z_dim, img_resize)
+        latent_num_prvs = config['train_params']['latent_num_prvs']
+        vae_model_path = os.path.join(setup_path.parent_dir, model_path, 'vae_model_z_15.pt')
+        latent_model_path = os.path.join(setup_path.parent_dir, model_path, 'latent_model_z_15.pt')
+        controller_agent = LatentCtrl(vae_model_path, latent_model_path, z_dim, latent_num_prvs, img_resize)
     elif agent_type == 'none':
         # Manual control
         dagger_type = 'none'
@@ -104,6 +105,8 @@ if __name__ == '__main__':
     # Reset function
     def reset():
         if fast_loop.agent_type == 'reg':
+            controller_agent.reset_prvs()
+        if fast_loop.agent_type == 'latent':
             controller_agent.reset_prvs()
         if save_data:
             data_logger.reset_folder(crashed=True)
@@ -157,7 +160,7 @@ if __name__ == '__main__':
                 if agent_type == 'reg':
                     fast_loop.agent_cmd = controller_agent.predict(fast_loop.image_color, fast_loop.image_depth, fast_loop.get_yaw_rate())
                 elif agent_type == 'latent':
-                    fast_loop.agent_cmd = controller_agent.predict(fast_loop.image_color)
+                    fast_loop.agent_cmd = controller_agent.predict(fast_loop.image_color, fast_loop.get_yaw_rate())
                 else:
                     raise Exception('You must define an agent type!')
 

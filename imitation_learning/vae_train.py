@@ -9,10 +9,10 @@ class VAETrain():
     '''
     VAE Training Agent
     '''
-    def __init__(self, VAE_model):
+    def __init__(self, VAE_model, learning_rate=1e-3):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.VAE_model = VAE_model.to(self.device)
-        self.optimizer = optim.Adam(self.VAE_model.parameters(), lr=1e-3)
+        self.optimizer = optim.Adam(self.VAE_model.parameters(), lr=learning_rate)
 
         self.last_epoch = 0
         self.train_losses = []
@@ -36,7 +36,8 @@ class VAETrain():
     def loss_function(self, x_recon, x, mu, logvar):
         MSE = F.mse_loss(x_recon, x, reduction='sum')
         KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-        beta = 100.0
+        # beta = 10.0
+        beta = 8.0
         return MSE + beta * KLD, MSE, KLD
 
     def train(self, epoch, train_loader):

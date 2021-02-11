@@ -9,11 +9,11 @@ class LatentTrain():
     '''
     Latent Controller Training Agent
     '''
-    def __init__(self, Latent_model, VAE_model):
+    def __init__(self, Latent_model, VAE_model, learning_rate=1e-3):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.Latent_model = Latent_model.to(self.device)
         self.VAE_model = VAE_model.to(self.device)
-        self.optimizer = optim.Adam(self.Latent_model.parameters(), lr=1e-2)
+        self.optimizer = optim.Adam(self.Latent_model.parameters(), lr=learning_rate)
 
         self.last_epoch = 0
         self.train_losses = []
@@ -46,11 +46,11 @@ class LatentTrain():
         self.VAE_model.eval()
         # train_loss = 0
         for batch_idx, batch_data in enumerate(train_loader):
-            batch_image, batch_label = batch_data
+            batch_image, batch_extra, batch_label = batch_data
             batch_z = self.VAE_model.get_latent(batch_image.to(self.device))
-
+            batch_all = torch.cat([batch_z, batch_extra.to(self.device)], axis=1)
             self.optimizer.zero_grad()
-            batch_x_pred = self.Latent_model(batch_z).view(-1)
+            batch_x_pred = self.Latent_model(batch_all).view(-1)
             loss = self.loss_function(batch_x_pred, batch_label.to(self.device))
             loss.backward()
             # train_loss += loss.item()

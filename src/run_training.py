@@ -62,7 +62,8 @@ if __name__ == '__main__':
             plot_generate_figure(generated_data.cpu(), example_data, N=6) 
 
         latent_checkpoint_filename = config['train_params']['latent_checkpoint_filename']
-        latent_agent = LatentTrain(MyLatent(z_dim), MyVAE(z_dim))
+        latent_num_prvs = config['train_params']['latent_num_prvs']
+        latent_agent = LatentTrain(MyLatent(z_dim+latent_num_prvs+1), MyVAE(z_dim))
         latent_agent.load_checkpoint(os.path.join(output_dir, latent_checkpoint_filename))
         latent_agent.plot_train_result()
 
@@ -73,9 +74,10 @@ if __name__ == '__main__':
         print('======= Linear Regression Controller =========')
         image_size = eval(config['ctrl_params']['image_size'])
         preload_sample = config['train_params']['preload_sample']
+        reg_num_prvs = config['train_params']['reg_num_prvs']
 
         # Multiprocessing agent
-        proc = mp.Process(target=RegTrain_multi, args=(dataset_dir, output_dir, image_size, preload_sample, False))
+        proc = mp.Process(target=RegTrain_multi, args=(dataset_dir, output_dir, reg_num_prvs, image_size, preload_sample, False))
         proc.start()
         proc.join()
 
@@ -89,6 +91,7 @@ if __name__ == '__main__':
         vae_checkpoint_filename = config['train_params']['vae_checkpoint_filename']
         vae_checkpoint_preload = config['train_params']['vae_checkpoint_preload']
         vae_model_filename = config['train_params']['vae_model_filename']
+        vae_learning_rate = config['train_params']['vae_learning_rate']
 
         # DataLoader
         print('Loading VAE datasets...')
@@ -100,7 +103,7 @@ if __name__ == '__main__':
         print('Load VAE datasets successfully.')
 
         # Create the agent
-        vae_agent = VAETrain(MyVAE(z_dim))
+        vae_agent = VAETrain(MyVAE(z_dim), vae_learning_rate)
         if vae_checkpoint_preload:
             vae_agent.load_checkpoint(os.path.join(output_dir, vae_checkpoint_filename))
 
@@ -124,16 +127,18 @@ if __name__ == '__main__':
         latent_checkpoint_filename = config['train_params']['latent_checkpoint_filename']
         latent_checkpoint_preload = config['train_params']['latent_checkpoint_preload']
         latent_model_filename = config['train_params']['latent_model_filename']
+        latent_num_prvs = config['train_params']['latent_num_prvs']
+        latent_learning_rate = config['train_params']['latent_learning_rate']
         vae_model_filename = config['train_params']['vae_model_filename']
-
+        
         # DataLoader
         print('Loading latent datasets...')
-        data = LatentDataset(dataset_dir, cmd_index=cmd_index, resize=img_resize, preload=True)
+        data = LatentDataset(dataset_dir, num_prvs=latent_num_prvs, resize=img_resize, preload=True)
         data_loader = DataLoader(data, batch_size=batch_size, shuffle=True, num_workers=6)
         print('Load latent datasets successfully.')
 
         # Create agent
-        latent_agent = LatentTrain(MyLatent(z_dim), MyVAE(z_dim))
+        latent_agent = LatentTrain(MyLatent(z_dim+latent_num_prvs+1), MyVAE(z_dim), latent_learning_rate)
         latent_agent.load_VAEmodel(os.path.join(output_dir, vae_model_filename))
         if latent_checkpoint_preload:
             latent_agent.load_checkpoint(os.path.join(output_dir, latent_checkpoint_filename))
