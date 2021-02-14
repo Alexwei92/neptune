@@ -70,6 +70,7 @@ class FastLoop():
         
         # controller
         self.agent_type = kwargs.get('agent_type') 
+        self.dagger_type = kwargs.get('dagger_type') 
         self.forward_speed = kwargs.get('forward_speed')
         self.max_yawRate = kwargs.get('max_yawRate')
         self.mission_height = kwargs.get('mission_height') 
@@ -166,6 +167,8 @@ class FastLoop():
                 self.is_expert = is_expert
                 if is_expert:
                     print_msg('Switch to manual control')
+                    if self.flight_mode is 'mission':
+                        self.manual_stop = True
                 else:
                     print_msg('Switch to agent control')
             

@@ -52,6 +52,29 @@ def plot_with_cmd(win_name, image, input, is_expert):
     cv2.line(image, (int(0.5*width),int(h1*height)), (int(0.5*width),int(h2*height)), (255,255,255), 1) # white
     cv2.imshow(win_name, image) 
 
+# Plot image with cmds to compare
+# input is normalized to [-0.5, 0.5]
+def plot_with_cmd_compare(win_name, image, pilot_input, agent_input):
+    height = image.shape[0]
+    width = image.shape[1]
+    # plot box
+    w1 = 0.35 # [0,1]
+    w2 = 0.65 # [0,1]
+    h1 = 0.85 # [0,1]
+    h2 = 0.9  # [0,1]
+    cv2.rectangle(image, (int(w1*width), int(h1*height)), (int(w2*width), int(h2*height)), (0,0,0), 2) # black
+    # plot bar
+    bar_width = 5 # pixel
+    pilot_center_pos = ((w2-w1)*width - bar_width) * pilot_input + 0.5*width
+    agent_center_pos = ((w2-w1)*width - bar_width) * agent_input + 0.5*width
+    # Pilot input
+    cv2.rectangle(image, (int(pilot_center_pos-bar_width/2),int(h1*height)), (int(pilot_center_pos+bar_width/2),int(h2*height)), (0,0,255), -1)
+    # Agent input
+    cv2.rectangle(image, (int(agent_center_pos-bar_width/2),int(h1*height)), (int(agent_center_pos+bar_width/2),int(h2*height)), (255,0,0), -1)
+    # plot center line
+    cv2.line(image, (int(0.5*width),int(h1*height)), (int(0.5*width),int(h2*height)), (255,255,255), 1) # white
+    cv2.imshow(win_name, image) 
+
 # Plot image with heading
 def plot_with_heading(win_name, image, input, is_expert):
     height = image.shape[0]
@@ -135,7 +158,7 @@ def plot_train_losses(train_history):
 
         fig, ax = plt.subplots(1,1)
         ax.plot(train_counter, train_losses, color='blue')
-        ax.legend(['MSE Loss'], loc='upper right')
+        ax.legend(['Loss'], loc='upper right')
         plt.xlabel('# of training samples')
         plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
         plt.title('NN Control training result')

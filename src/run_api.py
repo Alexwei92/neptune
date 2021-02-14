@@ -55,6 +55,7 @@ if __name__ == '__main__':
     # Fast Loop Init
     kwargs = {
         'agent_type': agent_type,
+        'dagger_type': dagger_type,
         'image_size': image_size,
         'initial_pose': initial_pose,
         'loop_rate': loop_rate,
@@ -74,7 +75,7 @@ if __name__ == '__main__':
     if agent_type == 'reg':
         # Linear regression controller
         reg_num_prvs = config['train_params']['reg_num_prvs']
-        reg_weight_path = os.path.join(setup_path.parent_dir, model_path, 'reg_weight.csv')
+        reg_weight_path = os.path.join(setup_path.parent_dir, model_path, 'reg_weight_test.csv')
         controller_agent = RegCtrl(reg_num_prvs, image_size, reg_weight_path, printout=False)
     elif agent_type == 'latent':
         # Latent NN controller

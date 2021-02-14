@@ -26,7 +26,7 @@ class FeatureExtract():
         # self.image_gpu = cv2.cuda_GpuMat()
         # self.image_canny = cv2.cuda_GpuMat()
         self.cannyFilter = cv2.cuda.createCannyEdgeDetector(low_thresh=5, high_thresh=20, apperture_size=3)
-        self.houghFilter = cv2.cuda.createHoughLinesDetector(rho=1, theta=(np.pi/60), threshold=3, doSort=True, maxLines=32)
+        self.houghFilter = cv2.cuda.createHoughLinesDetector(rho=1, theta=(np.pi/60), threshold=3, doSort=True, maxLines=30)
         # self.houghResult_gpu = np.zeros(self.config['HOUGH_ANGLES'] * 2 * len(self.H_points) * len(self.W_points))
 
         # Structure Tensor Init
@@ -103,7 +103,6 @@ class FeatureExtract():
         if len(image.shape) > 2:
             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-        # image_gpu = cv2.cuda_GpuMat(image)
         image_gpu = cv2.cuda_GpuMat(image)
         image_canny = self.cannyFilter.detect(image_gpu)
         houghResult_gpu = self.houghFilter.detect(image_canny)
@@ -287,6 +286,7 @@ class FeatureExtract():
         
         # Get features for each window
         k = 0
+        
         for i in self.H_points:
             for j in self.W_points:
                 # Cropped image

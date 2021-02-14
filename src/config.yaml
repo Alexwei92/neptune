@@ -1,7 +1,7 @@
 # Simulation parameters
 sim_params:
   loop_rate:                  10.0 # Hz
-  output_path:                'my_datasets/peng/river/iter3' # save data to this path
+  output_path:                'my_datasets/peng/river/test' # save data to this path
   save_data:                  False # {True, False}
 
   train_mode:                 'test' # {'train', 'test'}
@@ -33,35 +33,35 @@ rc_params:
 # Visualize parameters
 visualize_params:
   plot_2Dpos:                 False # plot a 2D trajectory in a new window
-  plot_heading:               False # plot heading in the current window
-  plot_cmd:                   True # plot cmd in the current window
+  plot_heading:               True # plot heading in the current window
+  plot_cmd:                   False # plot cmd in the current window
 
 # Training parameters
 train_params:
   dataset_dir:                'my_datasets/peng/river/iter0' # source datasets path
   output_dir:                 'my_outputs/peng/river/iter0' # save output to this path
   
-  result_only:                False # this will diable all trainings and only show results
+  result_only:                True # this will diable all trainings and only show results
 
-  train_reg:                  True # enable train linear regression weights
-  preload_sample:             True # preload samples from file
+  train_reg:                  False # enable train linear regression weights
+  preload_sample:             False # preload samples from file
   reg_num_prvs:               5 # number of previous cmd to use
 
-  train_vae:                  False # enable train VAE model
+  train_vae:                  True # enable train VAE model
   z_dim:                      15 # latent dimension
   img_resize:                 (64, 64) # resize image before VAE, right now only support (64, 64)
-  vae_n_epochs:               200 # number of epochs
+  vae_n_epochs:               500 # number of epochs
   vae_batch_size:             32 # batch size
   vae_checkpoint_filename:    'vae_checkpoint_z_15.pt' # checkpoint file name
   vae_checkpoint_preload:     True # preload a VAE checkpoint
   vae_model_filename:         'vae_model_z_15.pt' # save VAE model to this file name
-  vae_learning_rate:          0.001 # learning rate
+  vae_learning_rate:          0.0001 # learning rate
 
   train_latent:               False  # enable train latent controller network model
   latent_n_epochs:            200 # number of epochs
   latent_batch_size:          32 # batch size
   latent_checkpoint_filename: 'latent_checkpoint_z_15.pt' # latent controller checkpoint file name
-  latent_checkpoint_preload:  False # preload a latent controller checkpoint
+  latent_checkpoint_preload:  True # preload a latent controller checkpoint
   latent_model_filename:      'latent_model_z_15.pt' # save latent controller model to this file name
   latent_num_prvs:            5 # number of previous cmd to use
   latent_learning_rate:       0.001 # learning rate

@@ -6,7 +6,7 @@ import pandas
 import multiprocessing as mp
 
 from feature_extract import *
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, Ridge
 from sklearn.svm import SVR
 from scipy.optimize import curve_fit
 
@@ -19,7 +19,8 @@ def exponential_decay(num_prvs=5, max_prvs=15, ratio=1.5):
 
 def calculate_regression(X, y):
     print('\n*** Training Results ***')
-    reg = LinearRegression().fit(X, y)
+    # reg = LinearRegression().fit(X, y)
+    reg = Ridge(normalize=True).fit(X, y)
     r_square = reg.score(X, y)
     print('r_square = {:.6f}'.format(r_square))
 
@@ -132,6 +133,7 @@ class RegTrain_single():
         y_prvs = np.zeros((len(y), self.num_prvs))
         # prvs_index = exp_decay(self.num_prvs)
         prvs_index = [5,4,3,2,1]
+        # prvs_index = [3,2,1]
         
         for i in range(len(y)):
             for j in range(self.num_prvs):
@@ -195,4 +197,4 @@ class RegTrain_multi(RegTrain_single):
         self.train()
         
         # Save the weight to file
-        self.save_weight(os.path.join(output_path, 'reg_weight.csv'))
+        self.save_weight(os.path.join(output_path, 'reg_weight_test.csv'))
