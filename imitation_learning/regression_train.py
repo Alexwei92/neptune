@@ -7,7 +7,6 @@ import multiprocessing as mp
 
 from feature_extract import *
 from sklearn.linear_model import LinearRegression, Ridge
-from sklearn.svm import SVR
 from scipy.optimize import curve_fit
 
 # Exponential decaying function
@@ -32,36 +31,35 @@ def calculate_regression(X, y):
     print('***********************\n')
     return reg.coef_, reg.intercept_, r_square, rmse
 
-def sigmoid_function(X, w):
-    print(w.shape)
-    print(X.shape)
-    tmp = np.dot(w[:2070], X) + w[2071]
-    print(tmp.shape)
-    y_pred = w[2072] / (1.0 + np.exp(-w[2073]*tmp)) + w[2074]
-    return y_pred
+# def sigmoid_function(X, w):
+#     print(w.shape)
+#     print(X.shape)
+#     tmp = np.dot(w[:2070], X) + w[2071]
+#     print(tmp.shape)
+#     y_pred = w[2072] / (1.0 + np.exp(-w[2073]*tmp)) + w[2074]
+#     return y_pred
 
-def calculate_nonlinear(X, y):
-    a = 0
-    b = 1
-    c = 1
-    d = 1
-    popt, pcov  = curve_fit(sigmoid_function, xdata=X, ydata=y, p0=np.ones((2074,)))
+# def calculate_nonlinear(X, y):
+#     a = 0
+#     b = 1
+#     c = 1
+#     d = 1
+#     popt, pcov  = curve_fit(sigmoid_function, xdata=X, ydata=y, p0=np.ones((2074,)))
 
 
 class RegTrain_single():
-    '''
-    Linear Regression Training Agent in single core
-    '''
-    def __init__(self, folder_path, output_path, num_prvs, image_size, preload=False, printout=False):
+    """
+    Linear Regression Training Agent with Single Core
+    """
+    def __init__(self, folder_path, output_path, weight_filename, num_prvs, image_size, preload=False, printout=False):
         self.image_size = image_size
         self.num_prvs = num_prvs
-        tmp_feature_agent = FeatureExtract(feature_config, image_size)
-        self.X = np.empty((0, tmp_feature_agent.get_size()+self.num_prvs+1))
+        self.X = np.empty((0, FeatureExtract.get_size(feature_config, image_size) + self.num_prvs + 1))
         self.y = np.empty((0,))
+        # main function
+        self.run(folder_path, output_path, weight_filename, preload)
 
-        self.run(folder_path, output_path, preload)
-
-    def run(self, folder_path, output_path, preload):
+    def run(self, folder_path, output_path, weight_filename, preload):
         for subfolder in os.listdir(folder_path):
             subfolder_path = os.path.join(folder_path, subfolder)
             file_list_color = glob.glob(os.path.join(subfolder_path, 'color', '*.png'))
@@ -76,8 +74,8 @@ class RegTrain_single():
             if y is not None:
                 # ensure that there is no inf term
                 if np.sum(X==np.inf) > 0:
-                    print('*** Got Inf in the feature vector!')
-                    X[X==np.inf] = 0
+                    print('*** Got Inf in the feature vector in {:s}!'.format(subfolder))
+                    X[X==np.inf] = 0.0
             
                 self.X = np.concatenate((self.X, X), axis=0)
                 self.y = np.concatenate((self.y, y), axis=0)
@@ -85,14 +83,13 @@ class RegTrain_single():
         # Train the model
         self.train()
         
-        # Save the weight to file
-        self.save_weight(os.path.join(output_path, 'reg_weight.csv'))
-
+        # Save weight to file
+        self.save_weight(os.path.join(output_path, weight_filename))
 
     def get_sample(self, file_list_color, file_list_depth, folder_path, preload):
         # read from telemetry file
         X_extra, y = self.read_telemetry(folder_path)
-        
+
         if y is not None:
             file_path = os.path.join(folder_path, 'feature_preload.pkl')
             feature_agent = FeatureExtract(feature_config, self.image_size)
@@ -100,7 +97,7 @@ class RegTrain_single():
             if preload and os.path.isfile(file_path):
                 X = pandas.read_pickle(file_path).to_numpy()
             else:
-                X = np.zeros((len(file_list_color), feature_agent.get_size()))
+                X = np.zeros((len(file_list_color), len(feature_agent.feature_result)))
                 i = 0
                 for color_file, depth_file in zip(file_list_color, file_list_depth):
                     # print(color_file)
@@ -109,9 +106,10 @@ class RegTrain_single():
                     X[i,:] = feature_agent.step(image_color, image_depth)
                     i += 1
 
-                # save to file for the future use
+                # save to file for future use
                 pandas.DataFrame(X).to_pickle(file_path) 
-        
+
+            # output
             X = np.column_stack((X, X_extra))
             print('Load samples from {:s} successfully.'.format(folder_path))  
             return X, y
@@ -133,7 +131,6 @@ class RegTrain_single():
         y_prvs = np.zeros((len(y), self.num_prvs))
         # prvs_index = exp_decay(self.num_prvs)
         prvs_index = [5,4,3,2,1]
-        # prvs_index = [3,2,1]
         
         for i in range(len(y)):
             for j in range(self.num_prvs):
@@ -141,6 +138,7 @@ class RegTrain_single():
 
         # Yaw rate
         yawRate = np.reshape(telemetry_data['yaw_rate'][:-1].to_numpy(), (-1,1))
+        
         X_extra = np.concatenate((y_prvs, yawRate), axis=1)
         return X_extra, y
 
@@ -158,14 +156,14 @@ class RegTrain_single():
 
 
 class RegTrain_multi(RegTrain_single):
-    '''
-    Linear Regression Training Agent in multiple cores
-    '''
-    def __init__(self, folder_path, output_path, num_prvs, image_size, preload=False, printout=False):
-        super().__init__(folder_path, output_path, num_prvs, image_size, preload, printout)
+    """
+    Linear Regression Training Agent with multiple cores
+    """
+    def __init__(self, folder_path, output_path, weight_filename, num_prvs, image_size, preload=False, printout=False):
+        super().__init__(folder_path, output_path, weight_filename, num_prvs, image_size, preload, printout)
 
     # Override function
-    def run(self, folder_path, output_path, preload):
+    def run(self, folder_path, output_path, weight_filename, preload):
         jobs = []
         pool = mp.Pool(min(12, mp.cpu_count())) # use how many cores
         for subfolder in os.listdir(folder_path):
@@ -197,4 +195,4 @@ class RegTrain_multi(RegTrain_single):
         self.train()
         
         # Save the weight to file
-        self.save_weight(os.path.join(output_path, 'reg_weight_test.csv'))
+        self.save_weight(os.path.join(output_path, weight_filename))

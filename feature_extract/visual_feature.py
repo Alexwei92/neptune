@@ -1,7 +1,5 @@
 import numpy as np
 import cv2
-import os
-import glob
 import time
 
 class FeatureExtract():
@@ -9,11 +7,10 @@ class FeatureExtract():
         self.config = config
         self.image_size = image_size
         self.printout = printout
-
+        # Configure
         self.configure()
 
     def configure(self):
-
         # Sliding Window Init (only executed once)
         image_height = self.image_size[0]
         image_width = self.image_size[1]
@@ -22,48 +19,29 @@ class FeatureExtract():
         self.H_points, self.H_size = self.sliding_window(image_height, split_size[0], self.config['SLIDE_OVERLAP'], self.config['SLIDE_FLAG']) 
         self.W_points, self.W_size = self.sliding_window(image_width, split_size[1], self.config['SLIDE_OVERLAP'], self.config['SLIDE_FLAG'])
         
-        # Hough Init
-        # self.image_gpu = cv2.cuda_GpuMat()
-        # self.image_canny = cv2.cuda_GpuMat()
-        self.cannyFilter = cv2.cuda.createCannyEdgeDetector(low_thresh=5, high_thresh=20, apperture_size=3)
-        self.houghFilter = cv2.cuda.createHoughLinesDetector(rho=1, theta=(np.pi/60), threshold=3, doSort=True, maxLines=30)
-        # self.houghResult_gpu = np.zeros(self.config['HOUGH_ANGLES'] * 2 * len(self.H_points) * len(self.W_points))
-
-        # Structure Tensor Init
-
-        # Law Mask Init
-        self.create_lawMask(self.config['LAW_MASK'])
-
-        # Optical Flow Init
-        self.image_prvs = np.array([], dtype=np.uint8)
-        self.nvof = cv2.cuda_FarnebackOpticalFlow.create(numLevels=3, pyrScale=0.5, fastPyramids=False, winSize=15,
-                                                    numIters=3, polyN=5, polySigma=1.1, flags=0) 
-
-        # Color Feature Init
+        # Feature List
         self.feature_list = [
-            # Name,              Size,                            Function handle 
-            ('hough',            self.config['HOUGH_ANGLES'],     self.hough_feature),
-            ('structure_tensor', self.config['TENSOR_HISTBIN'],   self.tensor_feature),
-            ('law_mask',         len(self.config['LAW_MASK']),    self.law_feature),
-            ('optical_flow',     3,                               self.flow_feature),
+            # Name,              Size,                           Function handle,      Init Function handle,
+            ('hough',            self.config['HOUGH_ANGLES'],    self.hough_feature,   self.hough_init),
+            ('structure_tensor', self.config['TENSOR_HISTBIN'],  self.tensor_feature,  self.tensor_init),
+            ('law_mask',         len(self.config['LAW_MASK']),   self.law_feature,     self.law_init),
+            ('optical_flow',     3,                              self.flow_feature,    self.flow_init),
+            ('depth',            1,                              self.depth_feature,   self.depth_init),
         ]
 
         size_each_window = 0
         self.time_dict = {}
-        for name, size, function in self.feature_list:
+        for name, size, _, init_function in self.feature_list:
             size_each_window += size
             self.time_dict[name] = 0.0
-        self.feature_color_result = np.zeros(size_each_window * len(self.H_points) * len(self.W_points))
-    
-        # Depth Feature Init
-        self.depth_size = 1
-        self.feature_depth_result = np.zeros(self.depth_size * len(self.H_points) * len(self.W_points))
-        self.time_dict['depth'] = 0.0
+            init_function()
+        self.feature_result = np.zeros(size_each_window * len(self.H_points) * len(self.W_points))
 
-    ''' 
+    """
     @ Sliding Window
-    '''
-    def sliding_window(self, size, split_size, overlap=0.0, flag=0):
+    """
+    @staticmethod
+    def sliding_window(size, split_size, overlap=0.0, flag=0):
         # provide the exact window size
         if flag == 0:
             window_size = min(size, split_size)
@@ -95,9 +73,16 @@ class FeatureExtract():
 
         return points, window_size
 
-    '''
+    """
     @ Hough Feature
-    '''
+    """
+    def hough_init(self):
+        # self.image_gpu = cv2.cuda_GpuMat()
+        # self.image_canny = cv2.cuda_GpuMat()
+        self.cannyFilter = cv2.cuda.createCannyEdgeDetector(low_thresh=5, high_thresh=20, apperture_size=3)
+        self.houghFilter = cv2.cuda.createHoughLinesDetector(rho=1, theta=(np.pi/60), threshold=3, doSort=True, maxLines=30)
+        # self.houghResult_gpu = np.zeros(self.config['HOUGH_ANGLES'] * 2 * len(self.H_points) * len(self.W_points))
+
     def hough_feature(self, image):
         # Convert to grayscale if necessary
         if len(image.shape) > 2:
@@ -116,9 +101,12 @@ class FeatureExtract():
 
         return hough_result
 
-    '''
+    """
     @ Structure Tensor
-    '''
+    """
+    def tensor_init(self):
+        pass
+
     def tensor_feature(self, image):
         # Convert to grayscale if necessary
         if len(image.shape) > 2:
@@ -172,10 +160,10 @@ class FeatureExtract():
 
         return tensor_result
 
-    '''
+    """
     @ Law Mask
-    '''
-    def create_lawMask(self, masks):
+    """
+    def law_init(self):
         # Law's filters
         L3 = np.array([1,2,1], dtype=np.float32)
         E3 = np.array([-1,0,1], dtype=np.float32)
@@ -187,7 +175,7 @@ class FeatureExtract():
         R5 = np.array([1,-4,6,-4,1], dtype=np.float32)
 
         # A dictionary of law masks
-        # The most successful masks are {L5E5, E5S5, R5R5, L5S5, E5L5, S5E5, S5L5}
+        # Note: The most successful masks are {L5E5, E5S5, R5R5, L5S5, E5L5, S5E5, S5L5}
         lawMask_Dict = {
             "L5L5" : L5.reshape(5,1) * L5,
             "L5E5" : (L5.reshape(5,1) * E5 + E5.reshape(5,1) * L5) / 2,
@@ -202,7 +190,7 @@ class FeatureExtract():
         }
 
         self.law_masks = []
-        for name in masks:
+        for name in self.config['LAW_MASK']:
             self.law_masks.append((name, lawMask_Dict[name]))
 
     def law_feature(self, image):
@@ -238,9 +226,14 @@ class FeatureExtract():
 
         return law_result
 
-    '''
+    """
     @ Optical Flow
-    '''
+    """
+    def flow_init(self):
+        self.image_prvs = np.array([], dtype=np.uint8)
+        self.nvof = cv2.cuda_FarnebackOpticalFlow.create(numLevels=3, pyrScale=0.5, fastPyramids=False, winSize=15,
+                                                    numIters=3, polyN=5, polySigma=1.1, flags=0) 
+
     def flow_feature(self, image_next, image_prvs):
         # Convert to grayscale
         image_next = cv2.cvtColor(image_next, cv2.COLOR_BGR2GRAY)
@@ -264,9 +257,12 @@ class FeatureExtract():
         
         return flow_result
 
-    '''
+    """
     @ Depth feature
-    '''
+    """
+    def depth_init(self):
+        pass
+
     def depth_feature(self, image, reverse=True):
         # Reverse the pixel value
         if reverse:
@@ -277,73 +273,79 @@ class FeatureExtract():
 
         return depth_result
 
-    '''
-    @ Update function
-    '''
-    def update_color(self, image):
+    """
+    @ Step function
+    """
+    def step(self, image_color, image_depth):   
         # Convert to BGR
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        img_color = cv2.cvtColor(image_color, cv2.COLOR_RGB2BGR)
+
+        # for optical flow
+        if self.image_prvs.size == 0:
+            self.image_prvs = img_color
         
         # Get features for each window
         k = 0
-        
         for i in self.H_points:
             for j in self.W_points:
                 # Cropped image
-                cropped_image = image[i:i+self.H_size, j:j+self.W_size]
-                for name, size, function in self.feature_list:
+                cropped_image = img_color[i:i+self.H_size, j:j+self.W_size]
+                for name, size, function, _ in self.feature_list:
                     start_time = time.perf_counter()
-                    if name is 'optical_flow':
+                    if name is 'depth':
+                        cropped_image = image_depth[i:i+self.H_size, j:j+self.W_size]
+                        self.feature_result[k:k+size] = function(cropped_image)
+                    elif name is 'optical_flow':
                         cropped_image_prvs = self.image_prvs[i:i+self.H_size, j:j+self.W_size]
-                        self.feature_color_result[k:k+size] = function(cropped_image, cropped_image_prvs)
+                        self.feature_result[k:k+size] = function(cropped_image, cropped_image_prvs)
                     else:
-                        self.feature_color_result[k:k+size] = function(cropped_image)
+                        self.feature_result[k:k+size] = function(cropped_image)
                     self.time_dict[name] = time.perf_counter() - start_time 
                     k += size
+        
         # for optical flow
-        self.image_prvs = image
-        return self.feature_color_result
+        self.image_prvs = img_color
 
-
-    def update_depth(self, image):
-        # Get features for each window
-        k = 0
-        for i in self.H_points:
-            for j in self.W_points:    
-                # Cropped images          
-                cropped_image = image[i:i+self.H_size, j:j+self.W_size]
-                start_time = time.perf_counter()
-                self.feature_depth_result[k:k+self.depth_size] = self.depth_feature(cropped_image)
-                self.time_dict['depth'] = time.perf_counter() - start_time 
-                k += self.depth_size
-
-        return self.feature_depth_result
-
-    def step(self, image_color, image_depth):
-        # for the optical flow
-        if self.image_prvs.size == 0:
-            self.image_prvs = image_color
-    
-        self.update_color(image_color)
-        self.update_depth(image_depth)
         # Update time for each feature functions
         self.format_time(self.printout)
-        return np.concatenate((self.feature_color_result, self.feature_depth_result))
+        return self.feature_result
 
+    """
+    Auxiliary Functions
+    """
     def format_time(self, printout=True):
-        # Format the elapsed time and print out 
-        factor = 1.0 / sum(self.time_dict.values())
-        for key in self.time_dict:
-            self.time_dict[key] *= factor
-            if printout:
-                print('{:s}: {:.2%},'.format(key, self.time_dict[key]), end=" ")        
         if printout:
+            # Format the elapsed time and print out 
+            factor = 1.0 / sum(self.time_dict.values())
+            for key in self.time_dict:
+                self.time_dict[key] *= factor
+                print('{:s}: {:.2%},'.format(key, self.time_dict[key]), end=" ")        
             print('')
-
-    def get_size(self):
-        return len(self.feature_color_result) + len(self.feature_depth_result)
 
     def reset(self):
         self.image_prvs = np.array([], dtype=np.uint8)
-        self.feature_color_result.fill(0.0)
-        self.feature_depth_result.fill(0.0)
+        self.feature_result.fill(0.0)
+
+    @staticmethod
+    def get_size(config, image_size):
+        height, width = image_size
+        split_size = (config['SLIDE_ROWS'], config['SLIDE_COLS']) # split size e.g., (#height, #width) (rows, columns)
+        
+        H_points, _ = FeatureExtract.sliding_window(height, split_size[0], config['SLIDE_OVERLAP'], config['SLIDE_FLAG']) 
+        W_points, _ = FeatureExtract.sliding_window(width, split_size[1], config['SLIDE_OVERLAP'], config['SLIDE_FLAG'])
+        
+        # Feature List
+        feature_list = [
+            # Name,              Size,
+            ('hough',            config['HOUGH_ANGLES']),
+            ('structure_tensor', config['TENSOR_HISTBIN']),
+            ('law_mask',         len(config['LAW_MASK'])),
+            ('optical_flow',     3),
+            ('depth',            1),
+        ]
+
+        size_each_window = 0
+        for _, size in feature_list:
+            size_each_window += size
+
+        return size_each_window * len(H_points) * len(W_points)

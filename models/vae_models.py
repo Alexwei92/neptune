@@ -1,16 +1,27 @@
-import torch 
+import torch
 from torch import nn
 import torch.nn.functional as F
 
+# CNN output size
+def calculate_output_size(n_in, kernel_size, stride=1, padding=0, dilation=1):
+    n_out = (n_in + 2 * padding - dilation * (kernel_size - 1) - 1) / stride + 1
+    return int(n_out)
+
+def calculate_NN_size(input_size, kernel_size, stride=[1,1], padding=[0,0], dilation=[1,1]):
+    H_in, W_in = input_size
+    H_out = calculate_output_size(H_in, kernel_size[0], stride[0], padding[0], dilation[0])
+    W_out = calculate_output_size(W_in, kernel_size[1], stride[1], padding[1], dilation[1])
+    return (H_out, W_out)
+
 class Dronet(nn.Module):
-    '''
+    """
     VAE Encoder
-    '''
+    """
+
     def __init__(self, n_chan, n_out):
         super().__init__()
         self.n_chan = n_chan
         self.n_out = n_out
-        # self.decay = 0.1
 
         self.max0 = nn.MaxPool2d(kernel_size=2, stride=2)
 
@@ -38,7 +49,6 @@ class Dronet(nn.Module):
         self.linear2 = nn.Linear(32, n_out)
 
         self.init_weight()
-
 
     def init_weight(self):
         nn.init.kaiming_normal_(self.conv1.weight)
@@ -106,9 +116,10 @@ class Dronet(nn.Module):
 
 
 class Decoder(nn.Module):
-    '''
+    """
     VAE Decoder
-    '''
+    """
+
     def __init__(self, n_in):
         super().__init__()
 
@@ -126,7 +137,7 @@ class Decoder(nn.Module):
     def forward(self, x):
         x = self.linear(x)
         x = x.view(self.reshape)
-        
+
         x = self.deconv1(x)
         x = F.relu(x)
 
@@ -150,16 +161,18 @@ class Decoder(nn.Module):
 
         return x
 
+
 class MyVAE(nn.Module):
-    '''
+    """
     Full VAE Model
-    '''
+    """
+
     def __init__(self, n_z=20):
         super().__init__()
-        self.q_img = Dronet(n_chan=3, n_out=n_z*2)
+        self.q_img = Dronet(n_chan=3, n_out=n_z * 2)
         self.p_img = Decoder(n_in=n_z)
         self.n_z = n_z
-        
+
     def encode(self, x):
         x = self.q_img(x)
         mu = x[:, :self.n_z].view(-1, self.n_z)

@@ -38,24 +38,25 @@ visualize_params:
 
 # Training parameters
 train_params:
-  dataset_dir:                'my_datasets/peng/river/iter0' # source datasets path
-  output_dir:                 'my_outputs/peng/river/iter0' # save output to this path
+  dataset_dir:                'my_datasets/peng/test' # source datasets path
+  output_dir:                 'my_outputs/peng/test' # save output to this path
   
-  result_only:                True # this will diable all trainings and only show results
+  result_only:                False # this will diable all trainings and only show the results
 
   train_reg:                  False # enable train linear regression weights
   preload_sample:             False # preload samples from file
   reg_num_prvs:               5 # number of previous cmd to use
+  reg_weight_filename:        'reg_weight.csv' # regression weight file name
 
   train_vae:                  True # enable train VAE model
   z_dim:                      15 # latent dimension
   img_resize:                 (64, 64) # resize image before VAE, right now only support (64, 64)
-  vae_n_epochs:               500 # number of epochs
+  vae_n_epochs:               200 # number of epochs
   vae_batch_size:             32 # batch size
   vae_checkpoint_filename:    'vae_checkpoint_z_15.pt' # checkpoint file name
-  vae_checkpoint_preload:     True # preload a VAE checkpoint
+  vae_checkpoint_preload:     False # preload a VAE checkpoint
   vae_model_filename:         'vae_model_z_15.pt' # save VAE model to this file name
-  vae_learning_rate:          0.0001 # learning rate
+  vae_learning_rate:          0.001 # learning rate
 
   train_latent:               False  # enable train latent controller network model
   latent_n_epochs:            200 # number of epochs

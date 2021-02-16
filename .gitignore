@@ -18,3 +18,5 @@ src/__pycache__/
 imitation_learning/__pycache__/
 
 controller/__pycache__/
+
+.idea/

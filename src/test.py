@@ -1,30 +1,23 @@
-import pandas
-import numpy as np
+import setup_path
+import os
+import glob
 
+from feature_extract import *
 
-# Exponential decaying function
-def exp_decay(num_prvs=5, max_prvs=15, ratio=1.5):
-    y = []
-    for t in range(0,num_prvs):
-        y.append(int(np.ceil(max_prvs * np.exp(-t/ratio))))
-    return y
+if __name__=="__main__":
 
-filename='airsim.csv'
+    path = os.path.join(setup_path.parent_dir, 'my_datasets/peng/test/2021_Feb_09_23_01_33')
 
-# read telemetry csv       
-telemetry_data = pandas.read_csv(filename)
+    file_list_color = glob.glob(os.path.join(path, 'color', '*.png'))
+    file_list_depth = glob.glob(os.path.join(path, 'depth', '*.png'))
+    file_list_color.sort()
+    file_list_depth.sort()
 
-# Yaw cmd
-y = telemetry_data['yaw_cmd'][100:130].to_numpy()
+    feature_agent = FeatureExtract(feature_config, (480,640))
 
-# Previous commands with time decaying
-num_prvs = 5
-y_prvs = np.zeros((len(y), num_prvs))
-prvs_index = exp_decay(num_prvs)
-
-for i in range(len(y)):
-    for j in range(num_prvs):
-        y_prvs[i,j] = y[max(i-prvs_index[j], 0)]
-
-y = np.reshape(y, (-1,1))
-print(np.column_stack([y, y_prvs]))
+    for color_file, depth_file in zip(file_list_color, file_list_depth):
+        print(color_file)
+        image_color = cv2.imread(color_file, cv2.IMREAD_UNCHANGED)
+        image_depth = cv2.imread(depth_file, cv2.IMREAD_UNCHANGED)
+        feature_agent.step(image_color, image_depth)
+        # i += 1
