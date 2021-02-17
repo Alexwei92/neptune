@@ -43,7 +43,7 @@ train_params:
   result_only:                False # this will diable all trainings and only show the results
 
   train_reg:                  True # enable train linear regression weights
-  preload_sample:             False # preload samples from file
+  preload_sample:             True # preload samples from file
   reg_num_prvs:               5 # number of previous cmd to use
   reg_weight_filename:        'reg_weight.csv' # regression weight file name
 

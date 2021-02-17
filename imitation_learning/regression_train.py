@@ -47,7 +47,6 @@ def calculate_regression(X, y):
 #     d = 1
 #     popt, pcov  = curve_fit(sigmoid_function, xdata=X, ydata=y, p0=np.ones((2074,)))
 
-
 class RegTrain_single():
     """
     Linear Regression Training Agent with Single Core
@@ -104,9 +103,9 @@ class RegTrain_single():
                 for color_file, depth_file in zip(file_list_color, file_list_depth):
                     image_color = cv2.imread(color_file, cv2.IMREAD_UNCHANGED)
                     image_depth = cv2.imread(depth_file, cv2.IMREAD_UNCHANGED)
-                    tic = time.perf_counter()
+                    # tic = time.perf_counter()
                     X[i,:] = feature_agent.step(image_color, image_depth, 'BGR')
-                    print('Elapsed time = {:.5f} sec'.format(time.perf_counter()-tic))
+                    # print('Elapsed time = {:.5f} sec'.format(time.perf_counter()-tic))
                     i += 1
 
                 # save to file for future use
