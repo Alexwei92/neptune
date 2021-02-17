@@ -77,11 +77,13 @@ if __name__ == '__main__':
         reg_num_prvs = config['train_params']['reg_num_prvs']
         reg_weight_filename = config['train_params']['reg_weight_filename']
 
-        # RegTrain_single(dataset_dir, output_dir, reg_weight_filename, reg_num_prvs, image_size, preload_sample, False)
-        # Multiprocessing agent
-        proc = mp.Process(target=RegTrain_multi, args=(dataset_dir, output_dir, reg_weight_filename, reg_num_prvs, image_size, preload_sample, False))
-        proc.start()
-        proc.join()
+        # Single-processing agent
+        RegTrain_single(dataset_dir, output_dir, reg_weight_filename, reg_num_prvs, image_size, preload_sample, False)
+
+        # Multi-processing agent
+        # proc = mp.Process(target=RegTrain_multi, args=(dataset_dir, output_dir, reg_weight_filename, reg_num_prvs, image_size, preload_sample, False))
+        # proc.start()
+        # proc.join()
 
     # 2) VAE
     if train_vae:

@@ -4,6 +4,7 @@ import numpy as np
 import cv2
 import pandas
 import multiprocessing as mp
+from tqdm import tqdm 
 
 from feature_extract import *
 from sklearn.linear_model import LinearRegression, Ridge
@@ -54,13 +55,14 @@ class RegTrain_single():
     def __init__(self, folder_path, output_path, weight_filename, num_prvs, image_size, preload=False, printout=False):
         self.image_size = image_size
         self.num_prvs = num_prvs
+        self.printout = printout
         self.X = np.empty((0, FeatureExtract.get_size(feature_config, image_size) + self.num_prvs + 1))
         self.y = np.empty((0,))
         # main function
         self.run(folder_path, output_path, weight_filename, preload)
 
     def run(self, folder_path, output_path, weight_filename, preload):
-        for subfolder in os.listdir(folder_path):
+        for subfolder in tqdm(os.listdir(folder_path)):
             subfolder_path = os.path.join(folder_path, subfolder)
             file_list_color = glob.glob(os.path.join(subfolder_path, 'color', '*.png'))
             file_list_depth = glob.glob(os.path.join(subfolder_path, 'depth', '*.png'))
@@ -92,7 +94,7 @@ class RegTrain_single():
 
         if y is not None:
             file_path = os.path.join(folder_path, 'feature_preload.pkl')
-            feature_agent = FeatureExtract(feature_config, self.image_size)
+            feature_agent = FeatureExtract(feature_config, self.image_size, self.printout)
 
             if preload and os.path.isfile(file_path):
                 X = pandas.read_pickle(file_path).to_numpy()
@@ -100,10 +102,11 @@ class RegTrain_single():
                 X = np.zeros((len(file_list_color), len(feature_agent.feature_result)))
                 i = 0
                 for color_file, depth_file in zip(file_list_color, file_list_depth):
-                    # print(color_file)
                     image_color = cv2.imread(color_file, cv2.IMREAD_UNCHANGED)
                     image_depth = cv2.imread(depth_file, cv2.IMREAD_UNCHANGED)
-                    X[i,:] = feature_agent.step(image_color, image_depth)
+                    tic = time.perf_counter()
+                    X[i,:] = feature_agent.step(image_color, image_depth, 'BGR')
+                    print('Elapsed time = {:.5f} sec'.format(time.perf_counter()-tic))
                     i += 1
 
                 # save to file for future use
@@ -111,7 +114,7 @@ class RegTrain_single():
 
             # output
             X = np.column_stack((X, X_extra))
-            print('Load samples from {:s} successfully.'.format(folder_path))  
+            # print('Load samples from {:s} successfully.'.format(folder_path))  
             return X, y
         else:
             return None, None
@@ -178,7 +181,7 @@ class RegTrain_multi(RegTrain_single):
             jobs.append(pool.apply_async(self.get_sample, args=(file_list_color, file_list_depth, subfolder_path, preload)))
 
         # Wait results
-        results = [proc.get() for proc in jobs] 
+        results = [proc.get() for proc in tqdm(jobs)] 
 
         # Visual feature
         for X, y in results:

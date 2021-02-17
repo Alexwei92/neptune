@@ -9,3 +9,4 @@ pygame
 PyYAML
 pandas
 colorama
+tqdm

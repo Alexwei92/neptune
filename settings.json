@@ -1,4 +1,53 @@
 {
-  "SeeDocsAt": "https://github.com/Microsoft/AirSim/blob/master/docs/settings.md",
-  "SettingsVersion": 1.2
+  "SettingsVersion": 1.4,
+  "SimMode": "Multirotor",
+  "ViewMode": "NoDisplay",
+  "CameraDefaults": {
+    "CaptureSettings": [
+      {
+        "ImageType": 0,
+        "Width": 640,
+        "Height": 480,
+        "FOV_Degrees": 70
+      },
+      {
+        "ImageType": 3,
+        "Width": 640,
+        "Height": 480,
+        "FOV_Degrees": 70
+      },
+      {
+        "ImageType": 6,
+        "Width": 640,
+        "Height": 480,
+        "FOV_Degrees": 70
+      }
+    ]
+  },
+  "Recording": {
+    "RecordOnMove": false,
+    "RecordInterval": 0.2,
+    "Cameras": [
+      {"CameraName": "front_center", "ImageType": 0, "PixelsAsFloat": false, "Compress": true},
+      {"CameraName": "front_center", "ImageType": 3, "PixelsAsFloat": false, "Compress": true}
+    ]
+  },
+  "Vehicles": {
+     "drone_0": {
+       "VehicleType": "SimpleFlight",
+       "DefaultVehicleState": "Disarmed",
+       "AllowAPIAlways": true,
+       "Sensors": {
+          "Distance": {
+            "SensorType": 5,
+            "Enabled": true,
+            "X": 0, "Y": 0, "Z": 0,
+            "Yaw": 0, "Pitch": -90, "Roll": 0,
+            "MinDistance": 0.0,
+            "MaxDistance": 50.0,
+            "DrawDebugPoints": false
+          }
+      }
+    }
+  }
 }

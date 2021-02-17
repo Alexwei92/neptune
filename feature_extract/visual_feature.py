@@ -29,13 +29,23 @@ class FeatureExtract():
             ('depth',            1,                              self.depth_feature,   self.depth_init),
         ]
 
-        size_each_window = 0
+        # # Feature List
+        # self.feature_list = [
+        #     # Name,              Size,                           Function handle,      Init Function handle,
+        #     ('hough',            self.config['HOUGH_ANGLES'],    self.hough_apply,   self.hough_init),
+        #     ('structure_tensor', self.config['TENSOR_HISTBIN'],  self.tensor_apply,  self.tensor_init),
+        #     ('law_mask',         len(self.config['LAW_MASK']),   self.law_apply,     self.law_init),
+        #     ('optical_flow',     3,                              self.flow_apply,    self.flow_init),
+        #     ('depth',            1,                              self.depth_apply,   self.depth_init),
+        # ]
+
+        self.size_each_window = 0
         self.time_dict = {}
         for name, size, _, init_function in self.feature_list:
-            size_each_window += size
+            self.size_each_window += size
             self.time_dict[name] = 0.0
             init_function()
-        self.feature_result = np.zeros(size_each_window * len(self.H_points) * len(self.W_points))
+        self.feature_result = np.zeros(self.size_each_window * len(self.H_points) * len(self.W_points))
 
     """
     @ Sliding Window
@@ -77,21 +87,36 @@ class FeatureExtract():
     @ Hough Feature
     """
     def hough_init(self):
-        # self.image_gpu = cv2.cuda_GpuMat()
-        # self.image_canny = cv2.cuda_GpuMat()
+        self.image_gpu = cv2.cuda_GpuMat((self.W_size, self.H_size), cv2.CV_8U)
+        self.image_canny = cv2.cuda_GpuMat((self.W_size, self.H_size), cv2.CV_8U)
+        self.houghResult_gpu = cv2.cuda_GpuMat((30, 2), cv2.CV_32FC2)
+        # self.image_gpu = cv2.cuda_GpuMat((self.image_size[1], self.image_size[0]), cv2.CV_8U)
+        # self.image_canny = cv2.cuda_GpuMat((self.image_size[1], self.image_size[0]), cv2.CV_8U)        
         self.cannyFilter = cv2.cuda.createCannyEdgeDetector(low_thresh=5, high_thresh=20, apperture_size=3)
         self.houghFilter = cv2.cuda.createHoughLinesDetector(rho=1, theta=(np.pi/60), threshold=3, doSort=True, maxLines=30)
-        # self.houghResult_gpu = np.zeros(self.config['HOUGH_ANGLES'] * 2 * len(self.H_points) * len(self.W_points))
+        
+
+    def hough_apply(self, image):
+        # Convert to grayscale
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+        # Result
+        hough_result = np.zeros(self.config['HOUGH_ANGLES'] * len(self.H_points) * len(self.W_points))
+        index = 0
+        for i in self.H_points:
+            for j in self.W_points:
+                hough_result[index] = 0.0
+        
+        return hough_result
 
     def hough_feature(self, image):
-        # Convert to grayscale if necessary
-        if len(image.shape) > 2:
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        # Convert to grayscale
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-        image_gpu = cv2.cuda_GpuMat(image)
-        image_canny = self.cannyFilter.detect(image_gpu)
-        houghResult_gpu = self.houghFilter.detect(image_canny)
-        houghLines = houghResult_gpu.download()
+        self.image_gpu.upload(image)
+        self.cannyFilter.detect(self.image_gpu, self.image_canny)
+        self.houghFilter.detect(self.image_canny, self.houghResult_gpu)
+        houghLines = self.houghResult_gpu.download()
 
         hough_result = np.zeros(self.config['HOUGH_ANGLES'])
         if houghLines is not None:
@@ -107,10 +132,61 @@ class FeatureExtract():
     def tensor_init(self):
         pass
 
+    def tensor_apply(self, image):
+         # Convert to grayscale
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+             
+        # Apply Sober filter
+        Sx = cv2.Sobel(image, cv2.CV_32F, dx=1, dy=0, ksize=3)
+        Sy = cv2.Sobel(image, cv2.CV_32F, dx=0, dy=1, ksize=3)
+        Sxx = cv2.multiply(Sx, Sx)
+        Syy = cv2.multiply(Sy, Sy)
+        Sxy = cv2.multiply(Sx, Sy)
+
+        # Apply a box filter
+        filter_size = self.config['TENSOR_FILTSIZE']
+        # Sxx = cv2.boxFilter(Sxx, cv2.CV_32F, (filter_size, filter_size))
+        # Syy = cv2.boxFilter(Syy, cv2.CV_32F, (filter_size, filter_size))
+        # Sxy = cv2.boxFilter(Sxy, cv2.CV_32F, (filter_size, filter_size))
+        Sxx = cv2.GaussianBlur(Sxx, (filter_size, filter_size), 0)
+        Syy = cv2.GaussianBlur(Syy, (filter_size, filter_size), 0)
+        Sxy = cv2.GaussianBlur(Sxy, (filter_size, filter_size), 0)
+
+        # Eigenvalue
+        tmp1 = Sxx + Syy
+        tmp2 = Sxx - Syy
+        tmp2 = cv2.multiply(tmp2, tmp2)
+        tmp3 = cv2.multiply(Sxy, Sxy)
+        tmp4 = np.sqrt(tmp2 + 4.0 * tmp3) 
+        lambda1 = 0.5*(tmp1 + tmp4) # biggest eigenvalue
+        lambda2 = 0.5*(tmp1 - tmp4) # smallest eigenvalue
+
+        # Coherency
+        coherency = cv2.divide(lambda1 - lambda2, lambda1 + lambda2)
+        coherency = np.fmax(np.fmin(coherency, 1.0), 0.0)
+
+        # Orientation angle
+        orientation_Angle = cv2.phase(Syy-Sxx, 2.0*Sxy, angleInDegrees = True)
+        orientation_Angle = 0.5 * orientation_Angle
+
+        # Result
+        histbin = self.config['TENSOR_HISTBIN']
+        tensor_result = np.zeros(histbin * len(self.H_points) * len(self.W_points))
+        scale = 255 # a scale to normalize the output
+        index = 0
+        for i in self.H_points:
+            for j in self.W_points:
+                for k in np.linspace(0.0, 180.0, histbin, endpoint=False):
+                    tmp1 = (orientation_Angle[i:i+self.H_size, j:j+self.W_size] >= k) & (orientation_Angle[i:i+self.H_size, j:j+self.W_size] < k + 180./histbin)
+                    if tmp1.any():
+                        tensor_result[index] = np.sum(coherency[i:i+self.H_size, j:j+self.W_size][tmp1]) / scale
+                    index += 1
+
+        return tensor_result
+
     def tensor_feature(self, image):
-        # Convert to grayscale if necessary
-        if len(image.shape) > 2:
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        # Convert to grayscale
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
              
         # Apply Sober filter
         Sx = cv2.Sobel(image, cv2.CV_32F, dx=1, dy=0, ksize=3)
@@ -193,36 +269,52 @@ class FeatureExtract():
         for name in self.config['LAW_MASK']:
             self.law_masks.append((name, lawMask_Dict[name]))
 
-    def law_feature(self, image):
-        if len(image.shape) == 3:
-            # Convert to YCrCb colorspace
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
+    def law_apply(self, image):
+        # Convert to YCrCb colorspace
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
 
-            # Apply Law's masks
-            law_result = np.zeros(len(self.law_masks))
-            index = 0
-            scale = 255 # a scale to normalize the output
-            for name, mask in self.law_masks:
-                if name == "L5L5":
-                    for j in range(0,3):
-                        image_filtered = cv2.filter2D(image[:,:,j], cv2.CV_32F, mask)
-                        # image_filtered = cv2.normalize(image_filtered, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-                        law_result[index] = np.mean(abs(image_filtered)) / scale
-                        index += 1            
-                else:
-                    image_filtered = cv2.filter2D(image[:,:,0], cv2.CV_32F, mask)
+        # Apply Law's masks
+        image_filtered = {}
+        for name, mask in self.law_masks:
+            image_filtered[name] = cv2.filter2D(image[:,:,0], cv2.CV_32F, mask)
+        
+        # Result
+        law_result = np.zeros(len(self.law_masks) * len(self.H_points) * len(self.W_points))
+        index = 0
+        scale = 255 # a scale to normalize the output
+        for i in self.H_points:
+            for j in self.W_points:
+                for name, mask in self.law_masks:
+                    if name == "L5L5":
+                        for j in range(0,3):
+                            law_result[index] = np.mean(abs(image_filtered[name][i:i+self.H_size, j:j+self.W_size])) / scale
+                            index += 1            
+                    else:
+                        law_result[index] = np.mean(abs(image_filtered[name][i:i+self.H_size, j:j+self.W_size])) / scale
+                        index += 1    
+        
+        return law_result
+
+    def law_feature(self, image):
+        # Convert to YCrCb colorspace
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
+
+        # Apply Law's masks
+        law_result = np.zeros(len(self.law_masks))
+        index = 0
+        scale = 255 # a scale to normalize the output
+        for name, mask in self.law_masks:
+            if name == "L5L5":
+                for j in range(0,3):
+                    image_filtered = cv2.filter2D(image[:,:,j], cv2.CV_32F, mask)
                     # image_filtered = cv2.normalize(image_filtered, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
                     law_result[index] = np.mean(abs(image_filtered)) / scale
-                    index += 1    
-        else:
-            # if image is in grayscale
-            law_result = np.zeros(len(self.law_masks))
-            index = 0
-            for name, mask in self.law_masks:
+                    index += 1            
+            else:
                 image_filtered = cv2.filter2D(image[:,:,0], cv2.CV_32F, mask)
                 # image_filtered = cv2.normalize(image_filtered, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
                 law_result[index] = np.mean(abs(image_filtered)) / scale
-                index += 1    
+                index += 1     
 
         return law_result
 
@@ -230,21 +322,56 @@ class FeatureExtract():
     @ Optical Flow
     """
     def flow_init(self):
-        self.image_prvs = np.array([], dtype=np.uint8)
+        self.is_first_image = True 
+        self.image_prvs = np.zeros((self.image_size[0], self.image_size[1], 3), dtype=np.uint8)
         self.nvof = cv2.cuda_FarnebackOpticalFlow.create(numLevels=3, pyrScale=0.5, fastPyramids=False, winSize=15,
                                                     numIters=3, polyN=5, polySigma=1.1, flags=0) 
+        self.image_prvs_gpu = cv2.cuda_GpuMat((self.W_size, self.H_size), cv2.CV_8U)
+        self.image_next_gpu = cv2.cuda_GpuMat((self.W_size, self.H_size), cv2.CV_8U)
+        self.flow_gpu = cv2.cuda_GpuMat((self.W_size, self.H_size), cv2.CV_32FC2)
+        # self.image_prvs_gpu = cv2.cuda_GpuMat((self.image_size[1], self.image_size[0]), cv2.CV_8U)
+        # self.image_next_gpu = cv2.cuda_GpuMat((self.image_size[1], self.image_size[0]), cv2.CV_8U)
+        # self.flow_gpu = cv2.cuda_GpuMat((self.image_size[1], self.image_size[0]), cv2.CV_32FC2)
+        self.nvof.calc(self.image_prvs_gpu, self.image_next_gpu, None) # only to speed up the first calculation
+    
+    def flow_apply(self, image_next, image_prvs):
+        # Convert to grayscale
+        image_next = cv2.cvtColor(image_next, cv2.COLOR_BGR2GRAY)
+        image_prvs = cv2.cvtColor(image_prvs, cv2.COLOR_BGR2GRAY)
+
+        self.image_next_gpu.upload(image_next)
+        self.image_prvs_gpu.upload(image_prvs)
+
+        # Call OF function
+        self.nvof.calc(self.image_prvs_gpu, self.image_next_gpu, self.flow_gpu, None)
+        flow = self.flow_gpu.download()
+
+        # Calculate magnitude and angle
+        mag = np.sqrt(np.square(flow[..., 0]) + np.square(flow[..., 1]))
+        
+        # Result
+        flow_result = np.zeros(3 * len(self.H_points) * len(self.W_points))
+        index = 0
+        for i in self.H_points:
+            for j in self.W_points:
+                flow_result[index] = np.amax(mag[i:i+self.H_size, j:j+self.W_size])
+                flow_result[index+1] = np.amin(mag[i:i+self.H_size, j:j+self.W_size])
+                flow_result[index+2] = np.mean(mag[i:i+self.H_size, j:j+self.W_size])
+                index += 3
+        
+        return flow_result
 
     def flow_feature(self, image_next, image_prvs):
         # Convert to grayscale
         image_next = cv2.cvtColor(image_next, cv2.COLOR_BGR2GRAY)
         image_prvs = cv2.cvtColor(image_prvs, cv2.COLOR_BGR2GRAY)
 
-        image_next = cv2.cuda_GpuMat(image_next)
-        image_prvs = cv2.cuda_GpuMat(image_prvs)
+        self.image_next_gpu.upload(image_next)
+        self.image_prvs_gpu.upload(image_prvs)
 
         # Call OF function
-        flow_gpu = self.nvof.calc(image_prvs, image_next, None)
-        flow = flow_gpu.download()
+        self.nvof.calc(self.image_prvs_gpu, self.image_next_gpu, self.flow_gpu, None)
+        flow = self.flow_gpu.download()
 
         # Calculate magnitude and angle
         # mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1])
@@ -263,6 +390,22 @@ class FeatureExtract():
     def depth_init(self):
         pass
 
+    def depth_apply(self, image, reverse=True):
+        # Reverse the pixel value
+        if reverse:
+            image = 255 - image
+
+        # Result
+        depth_result = np.zeros(1 * len(self.H_points) * len(self.W_points))
+        index = 0
+        for i in self.H_points:
+            for j in self.W_points:
+                # Currently just the average over the entire window
+                depth_result[index] = np.mean(np.abs(image[i:i+self.H_size, j:j+self.W_size])) / 255. # in range [0.0, 1.0]
+                index += 1
+
+        return depth_result
+                
     def depth_feature(self, image, reverse=True):
         # Reverse the pixel value
         if reverse:
@@ -276,13 +419,17 @@ class FeatureExtract():
     """
     @ Step function
     """
-    def step(self, image_color, image_depth):   
-        # Convert to BGR
-        img_color = cv2.cvtColor(image_color, cv2.COLOR_RGB2BGR)
+    def step(self, image_color, image_depth, color_space='RGB'):   
+        if color_space is 'RGB':
+            # Convert from RGB to BGR
+            img_color = cv2.cvtColor(image_color, cv2.COLOR_RGB2BGR)
+        else:
+            img_color = image_color.copy()
 
         # for optical flow
-        if self.image_prvs.size == 0:
-            self.image_prvs = img_color
+        if self.is_first_image:
+            self.image_prvs = img_color.copy()
+            self.is_first_image = False
         
         # Get features for each window
         k = 0
@@ -304,10 +451,45 @@ class FeatureExtract():
                     k += size
         
         # for optical flow
-        self.image_prvs = img_color
+        self.image_prvs = img_color.copy()
 
         # Update time for each feature functions
         self.format_time(self.printout)
+        
+        return self.feature_result
+
+    def step2(self, image_color, image_depth, color_space='RGB'):   
+        if color_space is 'RGB':
+            # Convert from RGB to BGR
+            img_color = cv2.cvtColor(image_color, cv2.COLOR_RGB2BGR)
+        else:
+            img_color = image_color.copy()
+
+        # for optical flow
+        if self.is_first_image:
+            self.image_prvs = img_color.copy()
+            self.is_first_image = False
+        
+        # Get features for each window
+        k = 0
+        for name, size, function, _ in self.feature_list:
+            all_size = size * len(self.H_points) * len(self.W_points)
+            start_time = time.perf_counter()
+            if name is 'depth':
+                self.feature_result[k:k+all_size] = function(image_depth)
+            elif name is 'optical_flow':
+                self.feature_result[k:k+all_size] = function(img_color, self.image_prvs)
+            else:
+                self.feature_result[k:k+all_size] = function(img_color)
+            self.time_dict[name] = time.perf_counter() - start_time 
+            k += all_size
+    
+        # for optical flow
+        self.image_prvs = img_color.copy()
+
+        # Update time for each feature functions
+        self.format_time(self.printout)
+        
         return self.feature_result
 
     """
@@ -323,7 +505,8 @@ class FeatureExtract():
             print('')
 
     def reset(self):
-        self.image_prvs = np.array([], dtype=np.uint8)
+        self.is_first_image = True
+        self.image_prvs.fill(0)
         self.feature_result.fill(0.0)
 
     @staticmethod
