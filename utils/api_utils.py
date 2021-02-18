@@ -12,6 +12,7 @@ from utils import *
 from controller import *
 
 PRECISION = 8 # decimal digits
+colorama.init()
 
 # Add random offset to pose
 def add_offset_to_pose(pose, pos_offset=1, yaw_offset=np.pi*2):
@@ -23,9 +24,9 @@ def add_offset_to_pose(pose, pos_offset=1, yaw_offset=np.pi*2):
 # Get yaw from orientation
 def get_yaw_from_orientation(orientation):
     pitch, roll, yaw = airsim.to_eularian_angles(orientation) # in radians
-    return round(yaw, PRECISION) 
+    return yaw
 
-# Get the color and depth images in numpy.array
+# Get the color and depth images in numpy.array format
 def get_camera_images(camera_response, image_size):
     for _, response in enumerate(camera_response):
         # Color image
@@ -40,7 +41,6 @@ def get_camera_images(camera_response, image_size):
     return image_color, image_depth
 
 # Colored print out
-colorama.init()
 def print_msg(msg, type=0):
     # type = {0:Default, 1:Status, 2:Warning, 3:Error}
     if type == 1:
@@ -55,7 +55,6 @@ def print_msg(msg, type=0):
     else:
         print(msg)
 
-#
 class FastLoop():
     '''
     API Fast Loop
@@ -88,9 +87,9 @@ class FastLoop():
         
         # states and camera images
         self.drone_state = None
-        self.estimated_height = None
-        self.image_color = None
-        self.image_depth = None
+        self.estimated_height = 0.0
+        self.image_color = np.zeros((self.image_size[0], self.image_size[1], 3), dtype=np.uint8)
+        self.image_depth = np.zeros((self.image_size[0], self.image_size[1]), dtype=np.uint8)
         
         # status and cmd
         self.flight_mode = 'hover' # {hover, mission}
@@ -101,7 +100,8 @@ class FastLoop():
         self.agent_cmd = 0.0
         self.trigger_reset = False # to trigger external reset function
         self.force_reset = False # from external to force reset
-        self.manual_stop = False # if pilot stop the mission
+        self.manual_stop = False # if pilot manually stop the mission
+        self.virtual_crash = False # for a virtual crash in HG-Dagger
 
         # Connect to the AirSim simulator
         self.client = airsim.MultirotorClient()
@@ -125,12 +125,13 @@ class FastLoop():
                     self.max_yawRate,
                     self.use_rangefinder)
 
+
     # Collision
     def set_collision(self):
-        self.trigger_reset = True
+        self.trigger_reset = True # trigger external reset function
         if self.flight_mode is 'mission':
             print_msg('Collision occurred! API is reset to a random initial pose.', type=3)
-            print_msg('Please reset the stick to its idle position first!', type=2)
+            print_msg('Please reset the stick to its neutral position first!', type=2)
             self.has_collided = True
             self.flight_mode = 'hover' # Hover by default
             print_msg('{:s} flight mode'.format(self.flight_mode.capitalize()))
@@ -153,7 +154,7 @@ class FastLoop():
                 self.flight_mode = new_mode
                 print_msg('{:s} flight mode'.format(new_mode.capitalize()))
                 if new_mode is 'hover':
-                    self.manual_stop = True
+                    self.manual_stop = True # which pilot stop the mission
 
     # Controller Type
     def set_controller_type(self, joy_input):
@@ -167,8 +168,8 @@ class FastLoop():
                 self.is_expert = is_expert
                 if is_expert:
                     print_msg('Switch to manual control')
-                    if self.flight_mode is 'mission':
-                        self.manual_stop = True
+                    if self.flight_mode is 'mission' and self.dagger_type is 'hg':
+                        self.virtual_crash = True # when the pilot think it may crash (HG-dagger)
                 else:
                     print_msg('Switch to agent control')
             
@@ -190,7 +191,7 @@ class FastLoop():
                 self.force_reset = False
 
             # Update pilot yaw command from RC/joystick
-            self.pilot_cmd = round(self.joy.get_input(self.yaw_axis), PRECISION)
+            self.pilot_cmd = round(self.joy.get_input(self.yaw_axis), PRECISION) # round to precision
         
             # Update flight mode from RC/joystick
             self.set_flight_mode(self.joy.get_input(self.mode_axis))
@@ -241,10 +242,10 @@ class FastLoop():
             else:
                 self.controller.step(self.agent_cmd, estimated_height, 'mission')
 
-            # Constrain the loop rate
+            # Force the loop rate
             elapsed_time = time.perf_counter() - start_time
             if elapsed_time > 1./self.loop_rate:
-                print_msg('The fast loop rate is {:.2f} Hz, expected {:.2f} Hz!'.format(1./elapsed_time, self.loop_rate), type=2)
+                print_msg('The fast loop is running at {:.2f} Hz, expected {:.2f} Hz!'.format(1./elapsed_time, self.loop_rate), type=2)
             else:
                 time.sleep(1./self.loop_rate - elapsed_time) 
         
@@ -275,24 +276,24 @@ class Logger():
         if not os.path.isdir(root_dir):
             os.makedirs(root_dir)
         self.root_dir = root_dir
-
+        # Configure folder
         self.configure_folder()
 
     def configure_folder(self):
         folder_name = datetime.datetime.now().strftime("%Y_%h_%d_%H_%M_%S")
-        folder_path = self.root_dir+'/'+folder_name
-        os.makedirs(folder_path+'/'+'color')
-        os.makedirs(folder_path+'/'+'depth')
+        folder_path = self.root_dir + '/' + folder_name
+        os.makedirs(folder_path + '/' + 'color')
+        os.makedirs(folder_path + '/' + 'depth')
         self.folder_path = folder_path
 
-        self.file = open(folder_path+'/'+'airsim.csv', 'w', newline='')
-        self.filewriter = csv.writer(self.file, delimiter = ',')
+        self.file = open(folder_path + '/' + 'airsim.csv', 'w', newline='')
+        self.filewriter = csv.writer(self.file, delimiter=',')
         self.filewriter.writerow(['timestamp','pos_x','pos_y','pos_z','yaw','yaw_rate','yaw_cmd','flag'])
         self.flag = 0
         self.index = 0
 
-    def save_image(self, folder, img):
-        cv2.imwrite(os.path.join(self.folder_path+'/'+folder, "%07i.png" % self.index), img)
+    def save_image(self, folder, image):
+        cv2.imwrite(os.path.join(self.folder_path + '/' + folder, "%07i.png" % self.index), image)
 
     def save_csv(self, timestamp, state, cmd):
         values = [
@@ -300,42 +301,41 @@ class Logger():
             round(state.position.x_val, PRECISION), # pos_x, m
             round(state.position.y_val, PRECISION), # pos_y, m
             round(state.position.z_val, PRECISION), # pos_z, m
-            get_yaw_from_orientation(state.orientation), # yaw, rad
+            round(get_yaw_from_orientation(state.orientation), PRECISION), # yaw, rad
             round(state.angular_velocity.z_val, PRECISION), # yaw_rate, rad/s
-            cmd, # yaw_cmd, [-1,1]
+            round(cmd, PRECISION), # yaw_cmd [-1,1]
             self.flag] # flag
         self.filewriter.writerow(values)
         self.index += 1
 
-    def reset_folder(self, crashed=False):
-        if crashed:
-            self.filewriter.writerow(['crashed'])
-        else:
-            self.filewriter.writerow(['safe'])
-
+    def reset_folder(self, status='crashed'):
+        self.filewriter.writerow([status])
         self.clean()
         self.configure_folder()
         
     def clean(self):
         self.file.close()
         if self.index == 0:
+            # delete the folder if no content
             shutil.rmtree(self.folder_path)
 
 class Display():
     '''
     For displaying the window(s)
     '''
-    def __init__(self, image_size, max_yawRate, plot_heading=False, plot_cmd=False):
-        self.is_active = True
-        self.is_expert = True
-        self.image = np.zeros((image_size[0], image_size[1], 4))
+    def __init__(self, loop_rate, image_size, max_yawRate, plot_heading=False, plot_cmd=False, plot_trajectory=False):
+        self.image = np.zeros((image_size[0], image_size[1], 4), dtype=np.uint8)
         self.max_yawRate = max_yawRate
-        loop_rate = 15.0 # update at 15 Hz
-        self.dt = 1./loop_rate 
+        self.loop_rate = loop_rate
         self.plot_heading = plot_heading
         self.plot_cmd = plot_cmd
-        cv2.namedWindow('disp', cv2.WINDOW_NORMAL)
-
+        # cv2.namedWindow('disp', cv2.WINDOW_NORMAL)
+        if plot_trajectory:
+            fig, ax = plt.subplots()
+            self.trajectory_handle = DynamicPlot(fig, ax, max_width=120*loop_rate) # plot 2 minutes trajectory
+        
+        self.is_active = True
+        self.is_expert = True
         self.heading = 0.0
         self.cmd = 0.0
         self.t_old = time.perf_counter()      
@@ -346,10 +346,12 @@ class Display():
         if self.plot_heading:
             t_new = time.perf_counter()
             self.heading = cmd * self.max_yawRate * (t_new - self.t_old)
-            # print(t_new - self.t_old)
             self.t_old = t_new
         if self.plot_cmd:
             self.cmd = cmd
+
+    def update_trajctory(self, x, y):
+        self.trajectory_handle.update(round(x, 3), round(y, 3))
 
     def run(self):
         while self.is_active:
@@ -362,18 +364,17 @@ class Display():
                 plot_without_heading('disp', self.image)
 
             elapsed_time = time.perf_counter() - start_time
-            time.sleep(0.1)
-            if elapsed_time > self.dt:
+            if elapsed_time > 1./self.loop_rate:
                 # this should never happen
                 print_msg('The visualize loop rate is too high, consider to reduce the rate!', type=2)
             else:
-                time.sleep(self.dt - elapsed_time) 
+                time.sleep(1./self.loop_rate - elapsed_time) 
         
         self.clean()
     
     def clean(self):
-        pass
         # cv2.destroyAllWindows()
+        pass
 
 class Controller():
     '''
@@ -386,11 +387,12 @@ class Controller():
         self.max_yawRate = max_yawRate
         self.current_yaw = 0.0 # in radian
         self.use_rangefinder = use_rangefinder # use rangefinder
-    
         if use_rangefinder:
             self.z_velocity = 0.0
             self.zpos_pid = PIDController(kp=0.25, ki=0.0, kd=0.0, scale=6.0)
             self.zvel_pid = PIDController(kp=2.0, ki=2.0, kd=0.0, scale=1.0)
+
+        self.cmd_history = np.zeros((20,)) # record history cmd in memory 
 
     def set_current_yaw(self, yaw):
         self.current_yaw = yaw
@@ -399,6 +401,7 @@ class Controller():
         self.z_velocity = -z_velocity
 
     def step(self, cmd, estimated_height, flight_mode):
+        self.cmd_history = np.append(np.delete(self.cmd_history, 0), cmd)
         yawRate = cmd * self.max_yawRate
 
         if self.use_rangefinder:
@@ -422,9 +425,9 @@ class Controller():
             vy = self.forward_speed * np.sin(self.current_yaw)
             if self.use_rangefinder:
                 self.client.moveByVelocityAsync(vx=vx, vy=vy, 
-                                    vz=zvel_output,
-                                    duration=1,
-                                    yaw_mode=airsim.YawMode(True, yawRate))
+                                            vz=zvel_output,
+                                            duration=1,
+                                            yaw_mode=airsim.YawMode(True, yawRate))
             else:
                 self.client.moveByVelocityZAsync(vx=vx, vy=vy, 
                                                 z=-self.height,
@@ -436,6 +439,10 @@ class Controller():
     def reset_pid(self):
         self.zpos_pid.reset()
         self.zvel_pid.reset()
+        self.z_velocity = 0.0
+
+    def reset_cmd_history(self):
+        self.cmd_history.fill(0.0)
 
 class Rangefinder():
     '''

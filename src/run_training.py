@@ -81,7 +81,8 @@ if __name__ == '__main__':
         # RegTrain_single(dataset_dir, output_dir, reg_weight_filename, reg_num_prvs, image_size, preload_sample, False)
 
         # Multi-processing agent
-        proc = mp.Process(target=RegTrain_multi, args=(dataset_dir, output_dir, reg_weight_filename, reg_num_prvs, image_size, preload_sample, False))
+        proc = mp.Process(target=RegTrain_multi, args=(dataset_dir, output_dir, reg_weight_filename, \
+                                                    reg_num_prvs, image_size, preload_sample, False))
         proc.start()
         proc.join()
 

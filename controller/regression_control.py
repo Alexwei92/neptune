@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import pickle
 
 from feature_extract import *
 from imitation_learning import exponential_decay
@@ -13,36 +14,24 @@ class RegCtrl():
         self.feature_agent = FeatureExtract(feature_config, image_size, printout)
         self.num_prvs = num_prvs
         # self.prvs_index = exponential_decay(num_prvs)
-        self.prvs_index = [5,4,3,2,1]
-        self.cmd_prvs = np.zeros((max(self.prvs_index),))
+        self.prvs_index = [i for i in reversed(range(1, num_prvs+1))]
         print('The linear regression controller is initialized.')
 
     def load_weight_from_file(self, file_path):
-        self.weight = np.genfromtxt(file_path, delimiter=',')
-        print('Load weight from: ', file_path)
+        # self.weight = np.genfromtxt(file_path, delimiter=',')
+        self.model = pickle.load(open(file_path, 'rb'))
+        print('Load regression weight from {:s}.'.format(file_path))
 
-    def predict(self, image_color, image_depth, yawRate):
-        X = self.feature_agent.step(image_color, image_depth)
+    def predict(self, image_color, image_depth, yawRate, cmd_history):
+        X = self.feature_agent.step(image_color, image_depth, 'RGB')
         for index in self.prvs_index:
-            X = np.append(X, self.cmd_prvs[index-1])
+            X = np.append(X, cmd_history[-index])
         X = np.append(X, yawRate)
-        y = np.dot(self.weight[1:], X)
-        y += self.weight[0]
+        # y_pred = np.dot(self.weight[1:], X)
+        # y_pred += self.weight[0]
+        y_pred, = self.model.predict(np.reshape(X, (1,-1)))
         
-        # if np.abs(y) < 1e-3:
-        #     y = 0.0
+        if np.abs(y_pred) < 1e-3:
+            y_pred = 0.0  
 
-        # TODO: Normalize and restrict the output
-        if y > 1.0:
-            y = 1.0
-        if y < -1.0:
-            y = -1.0
-
-        for i in reversed(range(1,len(self.cmd_prvs))):
-            self.cmd_prvs[i] = self.cmd_prvs[i-1]
-        self.cmd_prvs[0] = y
-
-        return y
-
-    def reset_prvs(self):
-        self.cmd_prvs.fill(0.0)
+        return np.clip(y_pred, -1.0, 1.0)

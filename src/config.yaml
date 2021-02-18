@@ -5,7 +5,7 @@ sim_params:
   save_data:                  False # {True, False}
 
   train_mode:                 'test' # {'train', 'test'}
-  agent_type:                 'none' # {'none', 'reg', 'latent'}
+  agent_type:                 'reg' # {'none', 'reg', 'latent'}
   dagger_type:                'none' # {'none', 'vanilla', 'hg'}
 
   initial_pose:               (0,0,5,0),(120,143,5,0),(56,66,5,0),(10,49,5,0),(45,112,5,0) 
@@ -25,22 +25,22 @@ ctrl_params:
 # RC/Joystick parameters
 rc_params:
   device_id:                  0 # device ID
-  yaw_axis:                   0 # yaw axis
+  yaw_axis:                   3 # yaw axis
   mode_axis:                  5 # flight mode axis (e.g., hover, mission)
-  type_axis:                  5 # controller type axis (e.g., expert, agent)
+  type_axis:                  6 # controller type axis (e.g., pilot, agent)
 
 # Visualize parameters
 visualize_params:
-  plot_2Dpos:                 False # plot a 2D trajectory in a new window
+  plot_trajectory:            False # plot a 2D trajectory in a new window
   plot_heading:               False # plot heading in the current window
-  plot_cmd:                   False # plot cmd in the current window
+  plot_cmd:                   True # plot cmd in the current window
 
 # Training parameters
 train_params:
   dataset_dir:                'my_datasets/peng/river/iter0' # source datasets path
   output_dir:                 'my_outputs/peng/river/iter0' # save output to this path
   
-  result_only:                False # this will diable all trainings and only show the results
+  result_only:                False # this will diable all the trainings and only display the existing results
 
   train_reg:                  True # enable train linear regression weights
   preload_sample:             True # preload samples from file

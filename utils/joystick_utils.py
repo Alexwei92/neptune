@@ -24,7 +24,7 @@ class Joystick():
             # for an imperfect neutral position 
             if abs(value) < 0.01:
                 value = 0.0
-            return value # round to 8 decimal digits
+            return value
 
     def clean(self):
         pygame.joystick.quit()

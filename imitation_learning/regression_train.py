@@ -5,9 +5,11 @@ import cv2
 import pandas
 import multiprocessing as mp
 from tqdm import tqdm 
+import pickle
 
 from feature_extract import *
-from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.linear_model import LinearRegression, Ridge, BayesianRidge
+from sklearn.preprocessing import PolynomialFeatures
 from scipy.optimize import curve_fit
 
 # Exponential decaying function
@@ -17,10 +19,18 @@ def exponential_decay(num_prvs=5, max_prvs=15, ratio=1.5):
         y.append(int(np.ceil(max_prvs * np.exp(-t/ratio))))
     return y
 
-def calculate_regression(X, y):
+def calculate_regression(X, y, method='Ridge'):
     print('\n*** Training Results ***')
-    # reg = LinearRegression().fit(X, y)
-    reg = Ridge(normalize=True).fit(X, y)
+    if method is 'LinearRegression':
+        reg = LinearRegression(normalize=True).fit(X, y)
+    if method is 'Ridge':
+        reg = Ridge(normalize=True).fit(X, y)
+    if method is 'BayesianRidge':
+        reg = BayesianRidge(normalize=True).fit(X, y)
+    # if method is 'Polynomial':
+    # print(PolynomialFeatures(degree=3).fit(X, y))
+    if method is 'Sigmoid':
+        pass
     r_square = reg.score(X, y)
     print('r_square = {:.6f}'.format(r_square))
 
@@ -30,37 +40,34 @@ def calculate_regression(X, y):
     print('RMSE = {:.6f}'.format(rmse))
     print('Number of weights = {:} '.format(len(reg.coef_)+1))
     print('***********************\n')
-    return reg.coef_, reg.intercept_, r_square, rmse
+    return reg, r_square, rmse
 
-# def sigmoid_function(X, w):
-#     print(w.shape)
-#     print(X.shape)
-#     tmp = np.dot(w[:2070], X) + w[2071]
-#     print(tmp.shape)
-#     y_pred = w[2072] / (1.0 + np.exp(-w[2073]*tmp)) + w[2074]
-#     return y_pred
+# def sigmoid(x, Beta_1, Beta_2): 
+#      y = 1. / (1. + np.exp(-Beta_1*(x-Beta_2))) 
+#      return y 
 
-# def calculate_nonlinear(X, y):
-#     a = 0
-#     b = 1
-#     c = 1
-#     d = 1
-#     popt, pcov  = curve_fit(sigmoid_function, xdata=X, ydata=y, p0=np.ones((2074,)))
+def sigmoid_nonlinear(X, W, beta1, beta2):
+    tmp = 0
+    for i in range(0, 2071):
+        tmp += X[i] * W[i]
+    y = 2. / (1. + np.exp(-beta1*(tmp-beta2))) - 1.0
+    return y
+
+def calculate_nonlinear(X, y):
+    popt, pcov  = curve_fit(sigmoid_nonlinear, xdata=X, ydata=y, p0=np.ones((2072,)))
 
 class RegTrain_single():
     """
     Linear Regression Training Agent with Single Core
     """
     def __init__(self, folder_path, output_path, weight_filename, num_prvs, image_size, preload=False, printout=False):
-        self.image_size = image_size
-        self.num_prvs = num_prvs
-        self.printout = printout
-        self.X = np.empty((0, FeatureExtract.get_size(feature_config, image_size) + self.num_prvs + 1))
+        self.X = np.empty((0, FeatureExtract.get_size(feature_config, image_size) + num_prvs + 1))
         self.y = np.empty((0,))
-        # main function
-        self.run(folder_path, output_path, weight_filename, preload)
 
-    def run(self, folder_path, output_path, weight_filename, preload):
+        # Main function
+        self.run(folder_path, output_path, weight_filename, num_prvs, image_size, preload, printout)
+
+    def run(self, folder_path, output_path, weight_filename, num_prvs, image_size, preload, printout):
         for subfolder in tqdm(os.listdir(folder_path)):
             subfolder_path = os.path.join(folder_path, subfolder)
             file_list_color = glob.glob(os.path.join(subfolder_path, 'color', '*.png'))
@@ -70,8 +77,8 @@ class RegTrain_single():
             if len(file_list_color) != len(file_list_depth):
                 raise Exception("The size of color and depth images does not match!")
             
-            # Visual feature
-            X, y = self.get_sample(file_list_color, file_list_depth, subfolder_path, preload)
+            # Get feature vector
+            X, y = self.get_sample(file_list_color, file_list_depth, subfolder_path, num_prvs, image_size, preload, printout)
             if y is not None:
                 # ensure that there is no inf term
                 if np.sum(X==np.inf) > 0:
@@ -85,20 +92,20 @@ class RegTrain_single():
         self.train()
         
         # Save weight to file
-        self.save_weight(os.path.join(output_path, weight_filename))
+        self.save_weight(output_path, weight_filename)
 
-    def get_sample(self, file_list_color, file_list_depth, folder_path, preload):
-        # read from telemetry file
-        X_extra, y = self.read_telemetry(folder_path)
+    def get_sample(self, file_list_color, file_list_depth, folder_path, num_prvs, image_size, preload, printout):
+        # Read from telemetry file
+        X_extra, y, N = self.read_telemetry(folder_path, num_prvs)
 
-        if y is not None:
-            file_path = os.path.join(folder_path, 'feature_preload.pkl')
-            feature_agent = FeatureExtract(feature_config, self.image_size, self.printout)
+        if N is not None:
+            file_path = os.path.join(folder_path, 'feature_preload.pkl') # default file name
+            feature_agent = FeatureExtract(feature_config, image_size, printout)
 
             if preload and os.path.isfile(file_path):
                 X = pandas.read_pickle(file_path).to_numpy()
             else:
-                X = np.zeros((len(file_list_color), len(feature_agent.feature_result)))
+                X = np.zeros((N, len(feature_agent.feature_result)))
                 i = 0
                 for color_file, depth_file in zip(file_list_color, file_list_depth):
                     image_color = cv2.imread(color_file, cv2.IMREAD_UNCHANGED)
@@ -107,55 +114,62 @@ class RegTrain_single():
                     X[i,:] = feature_agent.step(image_color, image_depth, 'BGR')
                     # print('Elapsed time = {:.5f} sec'.format(time.perf_counter()-tic))
                     i += 1
+                    if i >= N:
+                        break
 
-                # save to file for future use
+                # Save to file for future use
                 pandas.DataFrame(X).to_pickle(file_path) 
 
-            # output
+            # Combine output
             X = np.column_stack((X, X_extra))
             # print('Load samples from {:s} successfully.'.format(folder_path))  
             return X, y
         else:
             return None, None
 
-    def read_telemetry(self, folder_path):
-        # read telemetry csv       
+    def read_telemetry(self, folder_path, num_prvs):
+        # Read telemetry csv       
         telemetry_data = pandas.read_csv(os.path.join(folder_path, 'airsim.csv'))
+        N = len(telemetry_data) - 1 # length of data 
 
         if telemetry_data.iloc[-1,0] == 'crashed':
             print('Find crashed dataset in {:s}'.format(folder_path))
-            return None, None
+            N -= (5 * 10) # remove the last 3 sec data
+            if N < 0:
+                return None, None, None
 
         # Yaw cmd
-        y = telemetry_data['yaw_cmd'][:-1].to_numpy()
+        y = telemetry_data['yaw_cmd'][:N].to_numpy()
 
         # Previous commands with time decaying
-        y_prvs = np.zeros((len(y), self.num_prvs))
-        # prvs_index = exp_decay(self.num_prvs)
-        prvs_index = [5,4,3,2,1]
-        
-        for i in range(len(y)):
-            for j in range(self.num_prvs):
+        y_prvs = np.zeros((N, num_prvs))
+        # prvs_index = exponential_decay(num_prvs)
+        prvs_index = [i for i in reversed(range(1, num_prvs+1))]
+        for i in range(N):
+            for j in range(num_prvs):
                 y_prvs[i,j] = y[max(i-prvs_index[j], 0)]
 
         # Yaw rate
-        yawRate = np.reshape(telemetry_data['yaw_rate'][:-1].to_numpy(), (-1,1))
+        yawRate = np.reshape(telemetry_data['yaw_rate'][:N].to_numpy(), (-1,1))
         
+        # X_extra = [y_prvs, yawRate]
         X_extra = np.concatenate((y_prvs, yawRate), axis=1)
-        return X_extra, y
-
-    def calculate_weight(self):
-        weight, intercept, self.r2, self.rmse = calculate_regression(self.X, self.y)
-        self.weight = np.append(intercept, weight)
         
+        return X_extra, y, N
+       
     def train(self):
-        self.calculate_weight()
+        self.model, r2, rmse = calculate_regression(self.X, self.y, method='Ridge')
+        self.weight = np.append(self.model.intercept_, self.model.coef_)
+
+        # calculate_nonlinear(self.X, self.y)
         print('Trained linear regression model successfully.')
 
-    def save_weight(self, file_path):
-        np.savetxt(file_path, self.weight, delimiter=',')
-        print('Save weight to: ', file_path)
+    def save_weight(self, output_path, filename):
+        pickle.dump(self.model, open(os.path.join(output_path, 'reg_model.pkl'), 'wb'))
+        print('Save model to: ', os.path.join(output_path, 'reg_model.pkl'))
 
+        np.savetxt(os.path.join(output_path, filename), self.weight, delimiter=',')
+        print('Save weight to: ', os.path.join(output_path, filename))
 
 class RegTrain_multi(RegTrain_single):
     """
@@ -165,7 +179,7 @@ class RegTrain_multi(RegTrain_single):
         super().__init__(folder_path, output_path, weight_filename, num_prvs, image_size, preload, printout)
 
     # Override function
-    def run(self, folder_path, output_path, weight_filename, preload):
+    def run(self, folder_path, output_path, weight_filename, num_prvs, image_size, preload, printout):
         jobs = []
         pool = mp.Pool(min(12, mp.cpu_count())) # use how many cores
         for subfolder in os.listdir(folder_path):
@@ -177,7 +191,8 @@ class RegTrain_multi(RegTrain_single):
             if len(file_list_color) != len(file_list_depth):
                 raise Exception("The size of color and depth images does not match!")
             
-            jobs.append(pool.apply_async(self.get_sample, args=(file_list_color, file_list_depth, subfolder_path, preload)))
+            jobs.append(pool.apply_async(self.get_sample, args=(file_list_color, file_list_depth, subfolder_path, \
+                                                             num_prvs, image_size, preload, printout)))
 
         # Wait results
         results = [proc.get() for proc in tqdm(jobs)] 
@@ -197,4 +212,4 @@ class RegTrain_multi(RegTrain_single):
         self.train()
         
         # Save the weight to file
-        self.save_weight(os.path.join(output_path, weight_filename))
+        self.save_weight(output_path, weight_filename)

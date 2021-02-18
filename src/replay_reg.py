@@ -5,13 +5,15 @@ import os
 import glob
 import cv2
 import time
+import matplotlib.pyplot as plt
 
 from utils import plot_with_cmd_compare
 from feature_extract import *
+from imitation_learning import exponential_decay
 
 if __name__ == '__main__':
     folder_path = setup_path.parent_dir + '/my_datasets/peng/river/iter0/2021_Feb_09_23_01_33'
-    weight_path = setup_path.parent_dir + '/my_outputs/peng/river/iter0/reg_weight_test.csv'
+    weight_path = setup_path.parent_dir + '/my_outputs/peng/river/iter0/reg_weight.csv'
 
     # load weight
     weight = np.genfromtxt(weight_path, delimiter=',')
@@ -32,8 +34,8 @@ if __name__ == '__main__':
     # previous commands with time decaying
     num_prvs = 5
     y_prvs = np.zeros((len(yaw_cmd), num_prvs))
-    prvs_index = [5,4,3,2,1]
-
+    # prvs_index = exponential_decay(num_prvs)
+    prvs_index = [i for i in reversed(range(1, num_prvs+1))]
     for i in range(len(yaw_cmd)):
         for j in range(num_prvs):
             y_prvs[i,j] = yaw_cmd[max(i-prvs_index[j], 0)]
@@ -51,25 +53,26 @@ if __name__ == '__main__':
 
     # dict
     feature_agent = FeatureExtract(feature_config, (480,640))
-    time_dict = {}
-    for name, _, _ in feature_agent.feature_list:
-        time_dict[name] = []
-    time_dict['depth'] = []
-    
+    time_dict = {}   
+    effect = {} 
+    bar_name = []
     total_size = 0
-    for i in feature_agent.H_points:
-        for j in feature_agent.W_points:
-            for name, size, _ in feature_agent.feature_list:
-                time_dict[name].append(total_size)
-                total_size += size
+    for name, size, _, _ in feature_agent.feature_list:
+        bar_name.append(name)
+        time_dict[name] = (total_size + size * len(feature_agent.H_points) * len(feature_agent.W_points))
+        total_size += size * len(feature_agent.H_points) * len(feature_agent.W_points)
 
-    for i in feature_agent.H_points:
-        for j in feature_agent.W_points:      
-            time_dict['depth'].append(total_size)      
-            total_size += feature_agent.depth_size
+
+    # plot
+    fig_bar, ax_bar = plt.subplots()
+    effect_percent = np.zeros((len(time_dict)+3,))
+    bar_name.append('cmd_prvs')
+    bar_name.append('yawRate')
+    bar_name.append('total')
+    bar_handle = ax_bar.bar(bar_name, effect_percent, width=0.8, color=['b','g','r','c','m','y','k',(0.5,0.5,0.5)])
+    ax_bar.set_ylim((-0.5,0.5))
 
     i = 0
-    effect = {}
     tic = time.perf_counter()
     for color_file in file_list_color:
         image = cv2.imread(color_file, cv2.IMREAD_UNCHANGED)
@@ -80,46 +83,32 @@ if __name__ == '__main__':
 
         y_pred = np.dot(weight[1:], X[i,:])
         y_pred += weight[0]
-
-        my_list = feature_agent.feature_list
-        my_list.append(('depth', 1, None))
-        # my_list.append(('cmd_prvs', 5, None))
-        # my_list.append(('yawRate', 1, None))
         
-        for name, size, _ in my_list:
-            effect[name] = 0
-            for index in time_dict[name]:
-                effect[name] += np.dot(weight[index+1:index+1+size], X[i,index:index+size])
-            effect[name] /= (y_pred-weight[0])
+        for name, size, _, _ in feature_agent.feature_list:
+            index = time_dict[name]
+            all_size = size * len(feature_agent.H_points) * len(feature_agent.W_points)
+            effect[name] = np.dot(weight[index-all_size+1:index+1], X[i, index-all_size:index])
 
-        effect_cmd_prvs = 0
-        # cmd_prvs_size = 5
-        # index = feature_agent.get_size()
-        # effect_cmd_prvs += np.dot(weight[index+1:index+1+cmd_prvs_size], X[i,index:index+cmd_prvs_size])
-        
-        effect_yawRate = 0
-        # index = feature_agent.get_size() + cmd_prvs_size
-        # effect_yawRate += np.dot(weight[index+1:index+1+1], X[i,index:index+1])  
+        effect['cmd_prvs'] = np.dot(weight[total_size+1:total_size+5+1], X[i, total_size:total_size+5])
+        effect['yawRate'] = np.dot(weight[total_size+5+1:total_size+6+1], X[i, total_size+5:total_size+6])
 
-        # effect_cmd_prvs /= (y_pred-weight[0])
-        # effect_yawRate /= (y_pred-weight[0])
-
-        # print('hough: {:.2%}, tensor: {:.2%}, law: {:.2%}, flow: {:.2%}, depth: {:.2%}, cmd_prvs: {:.2%}, yawRate: {:.2%}'\
-        #                 .format(effect_hough, effect_tensor, effect_law, effect_flow, effect_depth, effect_cmd_prvs, effect_yawRate))
-
+        k = 0
         for name in effect:
-            print('{:s}: {:.2%},'.format(name, effect[name]), end=" ")         
-
-
-        if y_pred > 1.0:
-            y_pred = 1.0
-        if y_pred < -1.0:
-            y_pred = -1.0
-
+            effect_percent[k] = effect[name] / (y_pred-weight[0])
+            # print('{:s}: {:.2%},'.format(name, effect_percent), end=" ")  
+            bar_handle[k].set_height(effect[name])      
+            k += 1 
+        bar_handle[len(bar_handle)-1].set_height(y_pred)  
+            
+        y_pred = np.clip(y_pred, -1.0, 1.0)
         
+        # plot
         plot_with_cmd_compare('reg', image, yaw_cmd[i], y_pred)
-        
+        # ax_bar.relim()
+        # ax_bar.autoscale_view()
+        plt.pause(1e-5)
+
         elapsed_time = time.perf_counter() - tic
-        time.sleep(max(timestamp[i]-elapsed_time, 0))
+        time.sleep(max(timestamp[i] - elapsed_time, 0))
         i += 1
-        print('\n')
+        # print('\n')
