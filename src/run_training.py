@@ -95,7 +95,7 @@ if __name__ == '__main__':
         # RegTrain_single(**reg_kwargs)
 
         # Multi-processing training
-        proc = mp.Process(target=RegTrain_multi, args=(**reg_kwargs))
+        proc = mp.Process(target=RegTrain_multi, kwargs=reg_kwargs)
         proc.start()
         proc.join()
 

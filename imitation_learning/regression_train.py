@@ -21,15 +21,15 @@ def exponential_decay(num_prvs=5, max_prvs=15, ratio=1.5):
 
 def calculate_regression(X, y, method='Ridge'):
     print('\n*** Training Results ***')
-    if method is 'LinearRegression':
+    if method == 'LinearRegression':
         reg = LinearRegression(normalize=True).fit(X, y)
-    if method is 'Ridge':
+    if method == 'Ridge':
         reg = Ridge(normalize=True).fit(X, y)
-    if method is 'BayesianRidge':
+    if method == 'BayesianRidge':
         reg = BayesianRidge(normalize=True).fit(X, y)
-    # if method is 'Polynomial':
+    # if method == 'Polynomial':
     # print(PolynomialFeatures(degree=3).fit(X, y))
-    if method is 'Sigmoid':
+    if method == 'Sigmoid':
         pass
     r_square = reg.score(X, y)
     print('r_square = {:.6f}'.format(r_square))
@@ -61,15 +61,15 @@ class RegTrain_single():
     Linear Regression Training Agent with Single Core
     """
     def __init__(self, **kwargs):
-        self.dataset_dir = kwargs.get('dataset_dir')
-        self.output_dir = kwargs.get('output_dir')
-        self.weight_filename = kwargs.get('weight_filename')
-        self.model_filename = kwargs.get('model_filename')
-        self.num_prvs = kwargs.get('num_prvs')
-        self.image_size = kwargs.get('image_size')
-        self.reg_type = kwargs.get('reg_type')
-        self.preload = kwargs.get('preload')
-        self.printout = kwargs.get('printout')
+        self.dataset_dir = kwargs['dataset_dir']
+        self.output_dir = kwargs['output_dir']
+        self.weight_filename = kwargs['weight_filename']
+        self.model_filename = kwargs['model_filename']
+        self.num_prvs = kwargs['num_prvs']
+        self.image_size = kwargs['image_size']
+        self.reg_type = kwargs['reg_type']
+        self.preload = kwargs.get('preload', True)
+        self.printout = kwargs.get('printout', False)
 
         self.X = np.empty((0, FeatureExtract.get_size(feature_config, self.image_size) + self.num_prvs + 1))
         self.y = np.empty((0,))
@@ -78,6 +78,7 @@ class RegTrain_single():
         self.run()
 
     def run(self):
+        print('Loading the datasets...')
         for subfolder in tqdm(os.listdir(self.dataset_dir)):
             subfolder_dir = os.path.join(self.dataset_dir, subfolder)
             file_list_color = glob.glob(os.path.join(subfolder_dir, 'color', '*.png'))
@@ -112,7 +113,7 @@ class RegTrain_single():
             file_path = os.path.join(subfolder_dir, 'feature_preload.pkl') # default file name
             feature_agent = FeatureExtract(feature_config, self.image_size, self.printout)
 
-            if preload and os.path.isfile(file_path):
+            if self.preload and os.path.isfile(file_path):
                 X = pandas.read_pickle(file_path).to_numpy()
             else:
                 X = np.zeros((N, len(feature_agent.feature_result)))
@@ -171,7 +172,7 @@ class RegTrain_single():
         model = calculate_regression(self.X, self.y, method=self.reg_type)
 
         if self.reg_type in ['Ridge', 'LinearRegression']:
-            weight = np.append(self.model.intercept_, self.model.coef_)
+            weight = np.append(model.intercept_, model.coef_)
         else:
             weight = None
         # calculate_nonlinear(self.X, self.y)

@@ -49,7 +49,7 @@ visualize_params:
 # Training parameters
 train_params:
   dataset_dir:                'my_datasets/subject3/map8/iter0' # source datasets path
-  output_dir:                 'my_outputs/peng/river/iter0' # save output to this path
+  output_dir:                 'my_outputs/peng/river/test' # save output to this path
   
   result_only:                False # this will diable all the trainings and only display the existing results
 
