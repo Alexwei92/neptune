@@ -209,7 +209,7 @@ class RegTrain_multi(RegTrain_single):
                 self.y = np.concatenate((self.y, y), axis=0)
 
         # Train the model
-        self.train()
+        # self.train()
         
         # Save the weight to file
-        self.save_weight(output_path, weight_filename)
+        # self.save_weight(output_path, weight_filename)
