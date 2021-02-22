@@ -53,7 +53,7 @@ if __name__ == '__main__':
     plot_trajectory = config['visualize_params']['plot_trajectory']
 
     # Fast Loop Init
-    kwargs = {
+    API_kwargs = {
         'agent_type': agent_type,
         'dagger_type': dagger_type,
         'image_size': image_size,
@@ -69,7 +69,7 @@ if __name__ == '__main__':
         'type_axis': type_axis,
         'mode_axis': mode_axis,                    
     }
-    fast_loop = FastLoop(**kwargs)
+    fast_loop = FastLoop(**API_kwargs)
 
     # Control Agent Init
     if agent_type == 'reg':

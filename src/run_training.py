@@ -75,14 +75,27 @@ if __name__ == '__main__':
         image_size = eval(config['ctrl_params']['image_size'])
         preload_sample = config['train_params']['preload_sample']
         reg_num_prvs = config['train_params']['reg_num_prvs']
+        reg_type = config['train_params']['reg_type']
         reg_weight_filename = config['train_params']['reg_weight_filename']
+        reg_model_filename = config['train_params']['reg_model_filename']
 
-        # Single-processing agent
-        # RegTrain_single(dataset_dir, output_dir, reg_weight_filename, reg_num_prvs, image_size, preload_sample, False)
+        reg_kwargs = {
+            'dataset_dir': dataset_dir,
+            'output_dir': output_dir,
+            'image_size': image_size,
+            'num_prvs': reg_num_prvs,
+            'reg_type': reg_type,
+            'weight_filename': reg_weight_filename,
+            'model_filename': reg_model_filename,
+            'preload': preload_sample,
+            'printout': False,
+        }
 
-        # Multi-processing agent
-        proc = mp.Process(target=RegTrain_multi, args=(dataset_dir, output_dir, reg_weight_filename, \
-                                                    reg_num_prvs, image_size, preload_sample, False))
+        # Single-processing training
+        # RegTrain_single(**reg_kwargs)
+
+        # Multi-processing training
+        proc = mp.Process(target=RegTrain_multi, args=(**reg_kwargs))
         proc.start()
         proc.join()
 

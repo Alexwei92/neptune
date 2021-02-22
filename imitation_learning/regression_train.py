@@ -40,7 +40,7 @@ def calculate_regression(X, y, method='Ridge'):
     print('RMSE = {:.6f}'.format(rmse))
     print('Number of weights = {:} '.format(len(reg.coef_)+1))
     print('***********************\n')
-    return reg, r_square, rmse
+    return reg
 
 # def sigmoid(x, Beta_1, Beta_2): 
 #      y = 1. / (1. + np.exp(-Beta_1*(x-Beta_2))) 
@@ -60,25 +60,35 @@ class RegTrain_single():
     """
     Linear Regression Training Agent with Single Core
     """
-    def __init__(self, folder_path, output_path, weight_filename, num_prvs, image_size, preload=False, printout=False):
-        self.X = np.empty((0, FeatureExtract.get_size(feature_config, image_size) + num_prvs + 1))
+    def __init__(self, **kwargs):
+        self.dataset_dir = kwargs.get('dataset_dir')
+        self.output_dir = kwargs.get('output_dir')
+        self.weight_filename = kwargs.get('weight_filename')
+        self.model_filename = kwargs.get('model_filename')
+        self.num_prvs = kwargs.get('num_prvs')
+        self.image_size = kwargs.get('image_size')
+        self.reg_type = kwargs.get('reg_type')
+        self.preload = kwargs.get('preload')
+        self.printout = kwargs.get('printout')
+
+        self.X = np.empty((0, FeatureExtract.get_size(feature_config, self.image_size) + self.num_prvs + 1))
         self.y = np.empty((0,))
 
         # Main function
-        self.run(folder_path, output_path, weight_filename, num_prvs, image_size, preload, printout)
+        self.run()
 
-    def run(self, folder_path, output_path, weight_filename, num_prvs, image_size, preload, printout):
-        for subfolder in tqdm(os.listdir(folder_path)):
-            subfolder_path = os.path.join(folder_path, subfolder)
-            file_list_color = glob.glob(os.path.join(subfolder_path, 'color', '*.png'))
-            file_list_depth = glob.glob(os.path.join(subfolder_path, 'depth', '*.png'))
+    def run(self):
+        for subfolder in tqdm(os.listdir(self.dataset_dir)):
+            subfolder_dir = os.path.join(self.dataset_dir, subfolder)
+            file_list_color = glob.glob(os.path.join(subfolder_dir, 'color', '*.png'))
+            file_list_depth = glob.glob(os.path.join(subfolder_dir, 'depth', '*.png'))
             file_list_color.sort()
             file_list_depth.sort()
             if len(file_list_color) != len(file_list_depth):
                 raise Exception("The size of color and depth images does not match!")
             
             # Get feature vector
-            X, y = self.get_sample(file_list_color, file_list_depth, subfolder_path, num_prvs, image_size, preload, printout)
+            X, y = self.get_sample(file_list_color, file_list_depth, subfolder_dir)
             if y is not None:
                 # ensure that there is no inf term
                 if np.sum(X==np.inf) > 0:
@@ -89,18 +99,18 @@ class RegTrain_single():
                 self.y = np.concatenate((self.y, y), axis=0)
 
         # Train the model
-        self.train()
+        model, weight = self.train()
         
-        # Save weight to file
-        self.save_weight(output_path, weight_filename)
+        # Save result to file
+        self.save_result(model, weight)
 
-    def get_sample(self, file_list_color, file_list_depth, folder_path, num_prvs, image_size, preload, printout):
+    def get_sample(self, file_list_color, file_list_depth, subfolder_dir):
         # Read from telemetry file
-        X_extra, y, N = self.read_telemetry(folder_path, num_prvs)
+        X_extra, y, N = self.read_telemetry(subfolder_dir, self.num_prvs)
 
         if N is not None:
-            file_path = os.path.join(folder_path, 'feature_preload.pkl') # default file name
-            feature_agent = FeatureExtract(feature_config, image_size, printout)
+            file_path = os.path.join(subfolder_dir, 'feature_preload.pkl') # default file name
+            feature_agent = FeatureExtract(feature_config, self.image_size, self.printout)
 
             if preload and os.path.isfile(file_path):
                 X = pandas.read_pickle(file_path).to_numpy()
@@ -122,19 +132,19 @@ class RegTrain_single():
 
             # Combine output
             X = np.column_stack((X, X_extra))
-            # print('Load samples from {:s} successfully.'.format(folder_path))  
+            # print('Load samples from {:s} successfully.'.format(subfolder_dir))  
             return X, y
         else:
             return None, None
 
-    def read_telemetry(self, folder_path, num_prvs):
+    def read_telemetry(self, folder_dir, num_prvs):
         # Read telemetry csv       
-        telemetry_data = pandas.read_csv(os.path.join(folder_path, 'airsim.csv'))
+        telemetry_data = pandas.read_csv(os.path.join(folder_dir, 'airsim.csv'))
         N = len(telemetry_data) - 1 # length of data 
 
         if telemetry_data.iloc[-1,0] == 'crashed':
-            print('Find crashed dataset in {:s}'.format(folder_path))
-            N -= (5 * 10) # remove the last 3 sec data
+            print('Find crashed dataset in {:s}'.format(folder_dir))
+            N -= (5 * 10) # remove the last 5 seconds data
             if N < 0:
                 return None, None, None
 
@@ -158,41 +168,45 @@ class RegTrain_single():
         return X_extra, y, N
        
     def train(self):
-        self.model, r2, rmse = calculate_regression(self.X, self.y, method='Ridge')
-        self.weight = np.append(self.model.intercept_, self.model.coef_)
+        model = calculate_regression(self.X, self.y, method=self.reg_type)
 
+        if self.reg_type in ['Ridge', 'LinearRegression']:
+            weight = np.append(self.model.intercept_, self.model.coef_)
+        else:
+            weight = None
         # calculate_nonlinear(self.X, self.y)
         print('Trained linear regression model successfully.')
+        return model, weight
 
-    def save_weight(self, output_path, filename):
-        pickle.dump(self.model, open(os.path.join(output_path, 'reg_model.pkl'), 'wb'))
-        print('Save model to: ', os.path.join(output_path, 'reg_model.pkl'))
+    def save_result(self, model, weight):
+        pickle.dump(model, open(os.path.join(self.output_dir, self.model_filename), 'wb'))
+        print('Save model to: ', os.path.join(self.output_dir, self.model_filename))
 
-        np.savetxt(os.path.join(output_path, filename), self.weight, delimiter=',')
-        print('Save weight to: ', os.path.join(output_path, filename))
+        if weight is not None:
+            np.savetxt(os.path.join(self.output_dir, self.weight_filename), weight, delimiter=',')
+            print('Save weight to: ', os.path.join(self.output_dir, self.weight_filename))
 
 class RegTrain_multi(RegTrain_single):
     """
     Linear Regression Training Agent with multiple cores
     """
-    def __init__(self, folder_path, output_path, weight_filename, num_prvs, image_size, preload=False, printout=False):
-        super().__init__(folder_path, output_path, weight_filename, num_prvs, image_size, preload, printout)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     # Override function
-    def run(self, folder_path, output_path, weight_filename, num_prvs, image_size, preload, printout):
+    def run(self):
         jobs = []
         pool = mp.Pool(min(12, mp.cpu_count())) # use how many cores
-        for subfolder in os.listdir(folder_path):
-            subfolder_path = os.path.join(folder_path, subfolder)
-            file_list_color = glob.glob(os.path.join(subfolder_path, 'color', '*.png'))
-            file_list_depth = glob.glob(os.path.join(subfolder_path, 'depth', '*.png'))
+        for subfolder in os.listdir(self.dataset_dir):
+            subfolder_dir = os.path.join(self.dataset_dir, subfolder)
+            file_list_color = glob.glob(os.path.join(subfolder_dir, 'color', '*.png'))
+            file_list_depth = glob.glob(os.path.join(subfolder_dir, 'depth', '*.png'))
             file_list_color.sort()
             file_list_depth.sort()
             if len(file_list_color) != len(file_list_depth):
                 raise Exception("The size of color and depth images does not match!")
             
-            jobs.append(pool.apply_async(self.get_sample, args=(file_list_color, file_list_depth, subfolder_path, \
-                                                             num_prvs, image_size, preload, printout)))
+            jobs.append(pool.apply_async(self.get_sample, args=(file_list_color, file_list_depth, subfolder_dir)))
 
         # Wait results
         results = [proc.get() for proc in tqdm(jobs)] 
@@ -209,7 +223,7 @@ class RegTrain_multi(RegTrain_single):
                 self.y = np.concatenate((self.y, y), axis=0)
 
         # Train the model
-        # self.train()
+        model, weight = self.train()
         
-        # Save the weight to file
-        # self.save_weight(output_path, weight_filename)
+        # Save result to file
+        self.save_result(model, weight)
