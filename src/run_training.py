@@ -42,32 +42,42 @@ if __name__ == '__main__':
         # Only display results, no training
         train_reg, train_vae, train_latent = False, False, False
 
-        batch_size = config['train_params']['vae_batch_size']
-        img_resize = eval(config['train_params']['img_resize'])
-        all_data = ImageDataset(dataset_dir, resize=img_resize, preload=True)
-        _, test_data = train_test_split(all_data, test_size=0.1, random_state=11) # split into train and test datasets
-        test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True, num_workers=6)
+        reg_model_filename = config['train_params']['reg_model_filename']
+        reg_weight_filename = config['train_params']['reg_weight_filename']
+        reg_result = pickle.load(open(os.path.join(output_dir, reg_model_filename), 'rb'))
+        print('\n*** Training Results ***')
+        print('Regression type = {:s}'.format(str(reg_result['Model'])))
+        print('R_square = {:.6f}'.format(reg_result['R_square']))
+        print('RMSE = {:.6f}'.format(reg_result['RMSE']))
+        print('Number of weights = {:} '.format(len(reg_result['Model'].coef_)+1))
+        print('***********************\n')
 
-        z_dim = config['train_params']['z_dim']
-        vae_checkpoint_filename = config['train_params']['vae_checkpoint_filename']
-        vae_agent = VAETrain(MyVAE(z_dim))
-        vae_agent.load_checkpoint(os.path.join(output_dir, vae_checkpoint_filename))
-        vae_agent.plot_train_result()
+        # batch_size = config['train_params']['vae_batch_size']
+        # img_resize = eval(config['train_params']['img_resize'])
+        # all_data = ImageDataset(dataset_dir, resize=img_resize, preload=True)
+        # _, test_data = train_test_split(all_data, test_size=0.1, random_state=11) # split into train and test datasets
+        # test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True, num_workers=6)
 
-        examples = enumerate(test_loader) 
-        batch_idx, example_data = next(examples) 
-        with torch.no_grad(): 
-            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") 
-            generated_data, _, _ = vae_agent.VAE_model(example_data.to(device)) 
-            plot_generate_figure(generated_data.cpu(), example_data, N=6) 
+        # z_dim = config['train_params']['z_dim']
+        # vae_checkpoint_filename = config['train_params']['vae_checkpoint_filename']
+        # vae_agent = VAETrain(MyVAE(z_dim))
+        # vae_agent.load_checkpoint(os.path.join(output_dir, vae_checkpoint_filename))
+        # vae_agent.plot_train_result()
 
-        latent_checkpoint_filename = config['train_params']['latent_checkpoint_filename']
-        latent_num_prvs = config['train_params']['latent_num_prvs']
-        latent_agent = LatentTrain(MyLatent(z_dim+latent_num_prvs+1), MyVAE(z_dim))
-        latent_agent.load_checkpoint(os.path.join(output_dir, latent_checkpoint_filename))
-        latent_agent.plot_train_result()
+        # examples = enumerate(test_loader) 
+        # batch_idx, example_data = next(examples) 
+        # with torch.no_grad(): 
+        #     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") 
+        #     generated_data, _, _ = vae_agent.VAE_model(example_data.to(device)) 
+        #     plot_generate_figure(generated_data.cpu(), example_data, N=6) 
 
-        plt.show()
+        # latent_checkpoint_filename = config['train_params']['latent_checkpoint_filename']
+        # latent_num_prvs = config['train_params']['latent_num_prvs']
+        # latent_agent = LatentTrain(MyLatent(z_dim+latent_num_prvs+1), MyVAE(z_dim))
+        # latent_agent.load_checkpoint(os.path.join(output_dir, latent_checkpoint_filename))
+        # latent_agent.plot_train_result()
+
+        # plt.show()
 
     # 1) Linear Regression
     if train_reg:

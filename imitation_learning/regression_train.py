@@ -22,25 +22,27 @@ def exponential_decay(num_prvs=5, max_prvs=15, ratio=1.5):
 def calculate_regression(X, y, method='Ridge'):
     print('\n*** Training Results ***')
     if method == 'LinearRegression':
-        reg = LinearRegression(normalize=True).fit(X, y)
+        model = LinearRegression(normalize=True).fit(X, y)
     if method == 'Ridge':
-        reg = Ridge(normalize=True).fit(X, y)
+        model = Ridge(normalize=True).fit(X, y)
     if method == 'BayesianRidge':
-        reg = BayesianRidge(normalize=True).fit(X, y)
-    # if method == 'Polynomial':
-    # print(PolynomialFeatures(degree=3).fit(X, y))
+        model = BayesianRidge(normalize=True).fit(X, y)
     if method == 'Sigmoid':
         pass
-    r_square = reg.score(X, y)
-    print('r_square = {:.6f}'.format(r_square))
-
-    mse = np.mean((reg.predict(X)-y)**2)
+    # if method == 'Polynomial':
+    # print(PolynomialFeatures(degree=3).fit(X, y))
+    print('Regression type = {:s}'.format(str(model)))
+    r_square = model.score(X, y)
+    print('R_square = {:.6f}'.format(r_square))
+    mse = np.mean((model.predict(X)-y)**2)
     rmse = np.sqrt(mse)
-    print('MSE = {:.6f}'.format(mse))
+    # print('MSE = {:.6f}'.format(mse))
     print('RMSE = {:.6f}'.format(rmse))
-    print('Number of weights = {:} '.format(len(reg.coef_)+1))
+    print('Number of weights = {:} '.format(len(model.coef_)+1))
     print('***********************\n')
-    return reg
+
+    result = {'Model': model, 'R_square':r_square, 'RMSE':rmse}
+    return result
 
 # def sigmoid(x, Beta_1, Beta_2): 
 #      y = 1. / (1. + np.exp(-Beta_1*(x-Beta_2))) 
@@ -169,18 +171,18 @@ class RegTrain_single():
         return X_extra, y, N
        
     def train(self):
-        model = calculate_regression(self.X, self.y, method=self.reg_type)
+        result = calculate_regression(self.X, self.y, method=self.reg_type)
 
         if self.reg_type in ['Ridge', 'LinearRegression']:
-            weight = np.append(model.intercept_, model.coef_)
+            weight = np.append(result['Model'].intercept_, result['Model'].coef_)
         else:
             weight = None
-        # calculate_nonlinear(self.X, self.y)
+        
         print('Trained linear regression model successfully.')
-        return model, weight
+        return result, weight
 
-    def save_result(self, model, weight):
-        pickle.dump(model, open(os.path.join(self.output_dir, self.model_filename), 'wb'))
+    def save_result(self, result, weight):
+        pickle.dump(result, open(os.path.join(self.output_dir, self.model_filename), 'wb'))
         print('Save model to: ', os.path.join(self.output_dir, self.model_filename))
 
         if weight is not None:

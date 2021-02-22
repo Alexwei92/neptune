@@ -56,7 +56,7 @@ train_params:
   train_reg:                  True # enable train linear regression weights
   preload_sample:             True # preload samples from file
   reg_num_prvs:               5 # number of previous cmd to use
-  reg_type:                   'Ridge' # {'Ridge', 'LinearRegression', 'BayesianRidge', 'Sigmoid'}
+  reg_type:                   'Ridge' # {'Ridge', 'LinearRegression', 'BayesianRidge'}
   reg_weight_filename:        'reg_weight.csv' # regression weight filename
   reg_model_filename:         'reg_model.pkl' # regression trained model filename
 
