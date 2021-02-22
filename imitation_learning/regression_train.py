@@ -23,14 +23,17 @@ def calculate_regression(X, y, method='Ridge'):
     print('\n*** Training Results ***')
     if method == 'LinearRegression':
         model = LinearRegression(normalize=True).fit(X, y)
-    if method == 'Ridge':
+    elif method == 'Ridge':
         model = Ridge(normalize=True).fit(X, y)
-    if method == 'BayesianRidge':
+    elif method == 'BayesianRidge':
         model = BayesianRidge(normalize=True).fit(X, y)
-    if method == 'Sigmoid':
+    elif method == 'Sigmoid':
         pass
-    # if method == 'Polynomial':
+    # elif method == 'Polynomial':
     # print(PolynomialFeatures(degree=3).fit(X, y))
+    else:
+        exit('Unknown regression method: {:s}'.format(method))
+
     print('Regression type = {:s}'.format(str(model)))
     r_square = model.score(X, y)
     print('R_square = {:.6f}'.format(r_square))

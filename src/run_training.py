@@ -52,32 +52,32 @@ if __name__ == '__main__':
         print('Number of weights = {:} '.format(len(reg_result['Model'].coef_)+1))
         print('***********************\n')
 
-        # batch_size = config['train_params']['vae_batch_size']
-        # img_resize = eval(config['train_params']['img_resize'])
-        # all_data = ImageDataset(dataset_dir, resize=img_resize, preload=True)
-        # _, test_data = train_test_split(all_data, test_size=0.1, random_state=11) # split into train and test datasets
-        # test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True, num_workers=6)
+        batch_size = config['train_params']['vae_batch_size']
+        img_resize = eval(config['train_params']['img_resize'])
+        all_data = ImageDataset(dataset_dir, resize=img_resize, preload=True)
+        _, test_data = train_test_split(all_data, test_size=0.1, random_state=11) # split into train and test datasets
+        test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True, num_workers=6)
 
-        # z_dim = config['train_params']['z_dim']
-        # vae_checkpoint_filename = config['train_params']['vae_checkpoint_filename']
-        # vae_agent = VAETrain(MyVAE(z_dim))
-        # vae_agent.load_checkpoint(os.path.join(output_dir, vae_checkpoint_filename))
-        # vae_agent.plot_train_result()
+        z_dim = config['train_params']['z_dim']
+        vae_checkpoint_filename = config['train_params']['vae_checkpoint_filename']
+        vae_agent = VAETrain(MyVAE(z_dim))
+        vae_agent.load_checkpoint(os.path.join(output_dir, vae_checkpoint_filename))
+        vae_agent.plot_train_result()
 
-        # examples = enumerate(test_loader) 
-        # batch_idx, example_data = next(examples) 
-        # with torch.no_grad(): 
-        #     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") 
-        #     generated_data, _, _ = vae_agent.VAE_model(example_data.to(device)) 
-        #     plot_generate_figure(generated_data.cpu(), example_data, N=6) 
+        examples = enumerate(test_loader) 
+        batch_idx, example_data = next(examples) 
+        with torch.no_grad(): 
+            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") 
+            generated_data, _, _ = vae_agent.VAE_model(example_data.to(device)) 
+            plot_generate_figure(generated_data.cpu(), example_data, N=6) 
 
-        # latent_checkpoint_filename = config['train_params']['latent_checkpoint_filename']
-        # latent_num_prvs = config['train_params']['latent_num_prvs']
-        # latent_agent = LatentTrain(MyLatent(z_dim+latent_num_prvs+1), MyVAE(z_dim))
-        # latent_agent.load_checkpoint(os.path.join(output_dir, latent_checkpoint_filename))
-        # latent_agent.plot_train_result()
+        latent_checkpoint_filename = config['train_params']['latent_checkpoint_filename']
+        latent_num_prvs = config['train_params']['latent_num_prvs']
+        latent_agent = LatentTrain(MyLatent(z_dim+latent_num_prvs+1), MyVAE(z_dim))
+        latent_agent.load_checkpoint(os.path.join(output_dir, latent_checkpoint_filename))
+        latent_agent.plot_train_result()
 
-        # plt.show()
+        plt.show()
 
     # 1) Linear Regression
     if train_reg:
@@ -88,6 +88,7 @@ if __name__ == '__main__':
         reg_type = config['train_params']['reg_type']
         reg_weight_filename = config['train_params']['reg_weight_filename']
         reg_model_filename = config['train_params']['reg_model_filename']
+        use_multicore = config['train_params']['use_multicore']
 
         reg_kwargs = {
             'dataset_dir': dataset_dir,
@@ -101,13 +102,14 @@ if __name__ == '__main__':
             'printout': False,
         }
 
-        # Single-processing training
-        # RegTrain_single(**reg_kwargs)
-
-        # Multi-processing training
-        proc = mp.Process(target=RegTrain_multi, kwargs=reg_kwargs)
-        proc.start()
-        proc.join()
+        if use_multicore: 
+            # Multi-processing training
+            proc = mp.Process(target=RegTrain_multi, kwargs=reg_kwargs)
+            proc.start()
+            proc.join()
+        else:
+            # Single-processing training
+            RegTrain_single(**reg_kwargs)
 
     # 2) VAE
     if train_vae:

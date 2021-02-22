@@ -59,6 +59,7 @@ train_params:
   reg_type:                   'Ridge' # {'Ridge', 'LinearRegression', 'BayesianRidge'}
   reg_weight_filename:        'reg_weight.csv' # regression weight filename
   reg_model_filename:         'reg_model.pkl' # regression trained model filename
+  use_multicore:              True # this will use multiple cpu cores to train the model
 
   train_vae:                  False # enable train VAE model
   z_dim:                      15 # latent dimension
