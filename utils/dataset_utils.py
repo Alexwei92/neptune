@@ -6,6 +6,7 @@ import cv2
 from torch.utils.data import Dataset
 import numpy as np
 import pandas
+import time
 
 def normalize_image(image):
     # Assume input image is uint8 type
@@ -52,6 +53,39 @@ class ImageDataset(Dataset):
             idx = idx.tolist()
 
         return self.images_np[idx, :].transpose((2,1,0))
+
+class ImageDataset2(Dataset):
+    '''
+    Image Dataset Class in numpy
+    '''
+    def __init__(self, folder_path, resize, n_chan=3, preload=True):
+        self.folder_path = folder_path
+        self.resize = resize
+        self.n_chan = 3
+        # self.images_np = np.empty((0, resize[0], resize[1], n_chan), dtype=np.float32)
+        self.file_list = []
+
+        for subfolder in os.listdir(folder_path):
+            subfolder_path = os.path.join(folder_path, subfolder)
+            print(subfolder_path)
+ 
+            file_list = glob.glob(os.path.join(subfolder_path, 'color', '*.png'))
+            file_list.sort()
+            self.file_list.extend(file_list)
+
+    def __len__(self):
+        return len(self.file_list)
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        img = cv2.imread(self.file_list[idx], cv2.IMREAD_UNCHANGED)
+        img = cv2.resize(img, (self.resize[1], self.resize[0]))
+        img = normalize_image(img)
+        image_np = img[:,:,:self.n_chan].astype(np.float32)
+            
+        return image_np.transpose((2,1,0))
 
 class LatentDataset(Dataset):
     '''

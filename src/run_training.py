@@ -6,6 +6,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
+import sys
 
 from utils import *
 from models import *
@@ -64,18 +65,18 @@ if __name__ == '__main__':
         vae_agent.load_checkpoint(os.path.join(output_dir, vae_checkpoint_filename))
         vae_agent.plot_train_result()
 
-        examples = enumerate(test_loader) 
-        batch_idx, example_data = next(examples) 
-        with torch.no_grad(): 
-            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") 
-            generated_data, _, _ = vae_agent.VAE_model(example_data.to(device)) 
-            plot_generate_figure(generated_data.cpu(), example_data, N=6) 
+        # examples = enumerate(test_loader) 
+        # batch_idx, example_data = next(examples) 
+        # with torch.no_grad(): 
+        #     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") 
+        #     generated_data, _, _ = vae_agent.VAE_model(example_data.to(device)) 
+        #     plot_generate_figure(generated_data.cpu(), example_data, N=6) 
 
-        latent_checkpoint_filename = config['train_params']['latent_checkpoint_filename']
-        latent_num_prvs = config['train_params']['latent_num_prvs']
-        latent_agent = LatentTrain(MyLatent(z_dim+latent_num_prvs+1), MyVAE(z_dim))
-        latent_agent.load_checkpoint(os.path.join(output_dir, latent_checkpoint_filename))
-        latent_agent.plot_train_result()
+        # latent_checkpoint_filename = config['train_params']['latent_checkpoint_filename']
+        # latent_num_prvs = config['train_params']['latent_num_prvs']
+        # latent_agent = LatentTrain(MyLatent(z_dim+latent_num_prvs+1), MyVAE(z_dim))
+        # latent_agent.load_checkpoint(os.path.join(output_dir, latent_checkpoint_filename))
+        # latent_agent.plot_train_result()
 
         plt.show()
 
@@ -113,6 +114,7 @@ if __name__ == '__main__':
 
     # 2) VAE
     if train_vae:
+        tic = time.perf_counter()
         print('============== VAE model ================')
         batch_size = config['train_params']['vae_batch_size']
         n_epochs = config['train_params']['vae_n_epochs']
@@ -124,13 +126,13 @@ if __name__ == '__main__':
         vae_learning_rate = config['train_params']['vae_learning_rate']
 
         # DataLoader
-        print('Loading VAE datasets...')
-        all_data = ImageDataset(dataset_dir, resize=img_resize, preload=True)
+        print('Loading datasets...')
+        all_data = ImageDataset(dataset_dir, resize=img_resize, preload=False)
+        # print(all_data[0].nbytes * len(all_data) * 1E-9)
         train_data, test_data = train_test_split(all_data, test_size=0.1, random_state=11) # split into train and test datasets
 
         train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=6)
         test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True, num_workers=6)
-        print('Load VAE datasets successfully.')
 
         # Create the agent
         vae_agent = VAETrain(MyVAE(z_dim), vae_learning_rate)
@@ -146,6 +148,8 @@ if __name__ == '__main__':
                 vae_agent.save_checkpoint(epoch, os.path.join(output_dir, vae_checkpoint_filename))
                 vae_agent.save_model(os.path.join(output_dir, vae_model_filename))
         print('Trained VAE model successfully.')
+        print('Load datasets successfully.')
+        print('elapsed time = {:.5f}'.format(time.perf_counter()-tic))
          
     # 3) Controller Network
     if train_latent:
@@ -163,7 +167,7 @@ if __name__ == '__main__':
         
         # DataLoader
         print('Loading latent datasets...')
-        data = LatentDataset(dataset_dir, num_prvs=latent_num_prvs, resize=img_resize, preload=True)
+        data = LatentDataset(dataset_dir, num_prvs=latent_num_prvs, resize=img_resize, preload=False)
         data_loader = DataLoader(data, batch_size=batch_size, shuffle=True, num_workers=6)
         print('Load latent datasets successfully.')
 

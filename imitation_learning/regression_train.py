@@ -83,7 +83,7 @@ class RegTrain_single():
         self.run()
 
     def run(self):
-        print('Loading the datasets...')
+        print('Loading datasets...')
         for subfolder in tqdm(os.listdir(self.dataset_dir)):
             subfolder_dir = os.path.join(self.dataset_dir, subfolder)
             file_list_color = glob.glob(os.path.join(subfolder_dir, 'color', '*.png'))
@@ -104,6 +104,8 @@ class RegTrain_single():
                 self.X = np.concatenate((self.X, X), axis=0)
                 self.y = np.concatenate((self.y, y), axis=0)
 
+        print('Load datasets successfully.')
+        
         # Train the model
         model, weight = self.train()
         
