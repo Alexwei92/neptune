@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 import numpy as np
 import torch
 import cv2
@@ -128,39 +129,32 @@ def plot_generate_figure(output, original, N):
 
 # plot training losses history
 def plot_train_losses(train_history):
-    skip_N = 5
     if len(train_history) == 4:
         # VAE result
-        train_counter, train_losses, train_MSE_losses, train_KLD_losses = train_history
-        train_counter = train_counter[skip_N:]
-        train_losses = train_losses[skip_N:]
-        train_MSE_losses = train_MSE_losses[skip_N:]
-        train_KLD_losses = train_KLD_losses[skip_N:]
+        epoch, total_losses, MSE_losses, KLD_losses = train_history
 
         fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
-        # plt.title('VAE training results')
-        ax1.plot(train_counter, train_KLD_losses, color='blue')
+        ax1.plot(epoch, KLD_losses, color='blue')
         ax1.legend(['KLD Loss'], loc='upper right')
-        ax2.plot(train_counter, train_MSE_losses, color='blue')
+        ax2.plot(epoch, MSE_losses, color='blue')
         ax2.legend(['MSE Loss'], loc='upper right')
         ax2.set_ylabel('Loss')
-        ax3.plot(train_counter, train_losses, color='blue')
+        ax3.plot(epoch, total_losses, color='blue')
         ax3.legend(['Total Loss'], loc='upper right')
-        plt.xlabel('# of training samples')
-        plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
-        
+        ax3.xaxis.set_major_locator(MaxNLocator(integer=True))
+        plt.xlabel('Epoch')
+        # plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
         
     elif len(train_history) == 2:
         # latent result
-        train_counter, train_losses = train_history
-        train_counter = train_counter[skip_N:]
-        train_losses = train_losses[skip_N:]
+        epoch, total_losses = train_history
 
         fig, ax = plt.subplots(1,1)
-        ax.plot(train_counter, train_losses, color='blue')
+        ax.plot(epoch, total_losses, color='blue')
         ax.legend(['Loss'], loc='upper right')
-        plt.xlabel('# of training samples')
-        plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        plt.xlabel('Epoch')
+        # plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
         plt.title('NN Control training result')
     else:
         pass

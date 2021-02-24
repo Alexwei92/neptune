@@ -24,7 +24,12 @@ if __name__ == '__main__':
 
     # Simulation settings
     loop_rate = config['sim_params']['loop_rate']
-    output_path = config['sim_params']['output_path']
+    output_dir = config['sim_params']['output_dir']
+    folder_path = config['sim_params']['folder_path']
+    if len(folder_path) == 0: # if leave it blank
+        output_dir = os.path.join(setup_path.parent_dir, output_dir)
+    else:
+        output_dir = os.path.join(folder_path, output_dir)
     save_data = config['sim_params']['save_data']
     agent_type = config['sim_params']['agent_type']
     dagger_type = config['sim_params']['dagger_type']
@@ -100,7 +105,7 @@ if __name__ == '__main__':
 
     # Data logger Init
     if save_data:
-        data_logger = Logger(os.path.join(setup_path.parent_dir, output_path))
+        data_logger = Logger(output_dir)
 
     # Reset function
     def reset():

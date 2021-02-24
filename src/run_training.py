@@ -6,7 +6,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
-import sys
+from tqdm import tqdm
 
 from utils import *
 from models import *
@@ -26,9 +26,14 @@ if __name__ == '__main__':
         exit()
 
     # Training settings
-    dataset_dir = os.path.join(setup_path.parent_dir, config['train_params']['dataset_dir']) 
-    output_dir = os.path.join(setup_path.parent_dir, config['train_params']['output_dir']) 
-    
+    folder_path = config['train_params']['folder_path']    
+    if len(folder_path) == 0: # if leave it blank
+        dataset_dir = os.path.join(setup_path.parent_dir, config['train_params']['dataset_dir']) 
+        output_dir = os.path.join(setup_path.parent_dir, config['train_params']['output_dir']) 
+    else:
+        dataset_dir = os.path.join(folder_path, config['train_params']['dataset_dir']) 
+        output_dir = os.path.join(folder_path, config['train_params']['output_dir']) 
+
     if not os.path.isdir(dataset_dir):
         raise Exception("No such folder {:s}".format(dataset_dir))
     if not os.path.isdir(output_dir):
@@ -43,21 +48,21 @@ if __name__ == '__main__':
         # Only display results, no training
         train_reg, train_vae, train_latent = False, False, False
 
-        reg_model_filename = config['train_params']['reg_model_filename']
-        reg_weight_filename = config['train_params']['reg_weight_filename']
-        reg_result = pickle.load(open(os.path.join(output_dir, reg_model_filename), 'rb'))
-        print('\n*** Training Results ***')
-        print('Regression type = {:s}'.format(str(reg_result['Model'])))
-        print('R_square = {:.6f}'.format(reg_result['R_square']))
-        print('RMSE = {:.6f}'.format(reg_result['RMSE']))
-        print('Number of weights = {:} '.format(len(reg_result['Model'].coef_)+1))
-        print('***********************\n')
+        # reg_model_filename = config['train_params']['reg_model_filename']
+        # reg_weight_filename = config['train_params']['reg_weight_filename']
+        # reg_result = pickle.load(open(os.path.join(output_dir, reg_model_filename), 'rb'))
+        # print('\n***** Regression Results *****')
+        # print('Regression type = {:s}'.format(str(reg_result['Model'])))
+        # print('R_square = {:.6f}'.format(reg_result['R_square']))
+        # print('RMSE = {:.6f}'.format(reg_result['RMSE']))
+        # print('Number of weights = {:} '.format(len(reg_result['Model'].coef_)+1))
+        # print('****************************\n')
 
         batch_size = config['train_params']['vae_batch_size']
         img_resize = eval(config['train_params']['img_resize'])
-        all_data = ImageDataset(dataset_dir, resize=img_resize, preload=True)
-        _, test_data = train_test_split(all_data, test_size=0.1, random_state=11) # split into train and test datasets
-        test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True, num_workers=6)
+        all_data = ImageDataset(dataset_dir, resize=img_resize)
+        test_data = torch.load(os.path.join(output_dir, 'test_data.pt'))
+        test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True, num_workers=2)
 
         z_dim = config['train_params']['z_dim']
         vae_checkpoint_filename = config['train_params']['vae_checkpoint_filename']
@@ -65,13 +70,16 @@ if __name__ == '__main__':
         vae_agent.load_checkpoint(os.path.join(output_dir, vae_checkpoint_filename))
         vae_agent.plot_train_result()
 
-        # examples = enumerate(test_loader) 
-        # batch_idx, example_data = next(examples) 
-        # with torch.no_grad(): 
-        #     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") 
-        #     generated_data, _, _ = vae_agent.VAE_model(example_data.to(device)) 
-        #     plot_generate_figure(generated_data.cpu(), example_data, N=6) 
-
+        print('\n***** VAE Results *****')
+        print('Epoch = {:d}'.format(vae_agent.epoch[-1]))
+        vae_agent.test(test_loader)
+        examples = enumerate(test_loader) 
+        batch_idx, example_data = next(examples) 
+        with torch.no_grad(): 
+            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") 
+            generated_data, _, _ = vae_agent.VAE_model(example_data.to(device)) 
+            plot_generate_figure(generated_data.cpu(), example_data, N=6) 
+        print('****************************\n')
         # latent_checkpoint_filename = config['train_params']['latent_checkpoint_filename']
         # latent_num_prvs = config['train_params']['latent_num_prvs']
         # latent_agent = LatentTrain(MyLatent(z_dim+latent_num_prvs+1), MyVAE(z_dim))
@@ -114,7 +122,6 @@ if __name__ == '__main__':
 
     # 2) VAE
     if train_vae:
-        tic = time.perf_counter()
         print('============== VAE model ================')
         batch_size = config['train_params']['vae_batch_size']
         n_epochs = config['train_params']['vae_n_epochs']
@@ -127,12 +134,15 @@ if __name__ == '__main__':
 
         # DataLoader
         print('Loading datasets...')
-        all_data = ImageDataset(dataset_dir, resize=img_resize, preload=False)
-        # print(all_data[0].nbytes * len(all_data) * 1E-9)
-        train_data, test_data = train_test_split(all_data, test_size=0.1, random_state=11) # split into train and test datasets
-
-        train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=6)
-        test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True, num_workers=6)
+        all_data = ImageDataset(dataset_dir, resize=img_resize)
+        if not os.path.isfile(os.path.join(dataset_dir, 'train_data.pt')):
+            train_data, test_data = train_test_split(all_data, test_size=0.05, random_state=11) # split into train and test datasets
+            torch.save(train_data, os.path.join(dataset_dir, 'train_data.pt'))
+            torch.save(test_data, os.path.join(output_dir, 'test_data.pt'))
+        else:
+            train_data = torch.load(os.path.join(dataset_dir, 'train_data.pt'))
+        train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=2)
+        print('Load VAE datasets successfully!')
 
         # Create the agent
         vae_agent = VAETrain(MyVAE(z_dim), vae_learning_rate)
@@ -140,16 +150,12 @@ if __name__ == '__main__':
             vae_agent.load_checkpoint(os.path.join(output_dir, vae_checkpoint_filename))
 
         # Training loop
-        for epoch in range(1, n_epochs + 1):
+        print('\n*** Start training ***')
+        for epoch in tqdm(range(1, n_epochs + 1)):
             vae_agent.train(epoch, train_loader)
-            vae_agent.test(test_loader)
-
-            if epoch % 10 == 0 and epoch > 0:
-                vae_agent.save_checkpoint(epoch, os.path.join(output_dir, vae_checkpoint_filename))
-                vae_agent.save_model(os.path.join(output_dir, vae_model_filename))
+            vae_agent.save_checkpoint(epoch, os.path.join(output_dir, vae_checkpoint_filename))
+            vae_agent.save_model(os.path.join(output_dir, vae_model_filename))
         print('Trained VAE model successfully.')
-        print('Load datasets successfully.')
-        print('elapsed time = {:.5f}'.format(time.perf_counter()-tic))
          
     # 3) Controller Network
     if train_latent:

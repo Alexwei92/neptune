@@ -19,7 +19,7 @@ def plot_one_trail(pos_x, pos_y, is_crash, color='b'):
 
 if __name__ == '__main__':
 
-    folder_path = '/home/lab/Documents/Peng/neptune/my_datasets/peng/river/iter1_latent_hg_disp'
+    folder_path = '/home/lab/Documents/Peng/neptune/my_datasets/peng/river/iter0'
     total_N = 0
     for subfolder in os.listdir(folder_path):
         file_path = os.path.join(folder_path, subfolder, 'airsim.csv')
