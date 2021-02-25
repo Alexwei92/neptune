@@ -60,8 +60,7 @@ if __name__ == '__main__':
 
         batch_size = config['train_params']['vae_batch_size']
         img_resize = eval(config['train_params']['img_resize'])
-        all_data = ImageDataset(dataset_dir, resize=img_resize)
-        test_data = torch.load(os.path.join(output_dir, 'test_data.pt'))
+        test_data = torch.load(os.path.join(dataset_dir, 'test_data.pt'))
         test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True, num_workers=2)
 
         z_dim = config['train_params']['z_dim']
@@ -138,7 +137,7 @@ if __name__ == '__main__':
         if not os.path.isfile(os.path.join(dataset_dir, 'train_data.pt')):
             train_data, test_data = train_test_split(all_data, test_size=0.05, random_state=11) # split into train and test datasets
             torch.save(train_data, os.path.join(dataset_dir, 'train_data.pt'))
-            torch.save(test_data, os.path.join(output_dir, 'test_data.pt'))
+            torch.save(test_data, os.path.join(dataset_dir, 'test_data.pt'))
         else:
             train_data = torch.load(os.path.join(dataset_dir, 'train_data.pt'))
         train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=2)

@@ -85,9 +85,7 @@ class VAETrain():
         # print('Save checkpoint to ', file_path)
 
     def save_model(self, file_path):
-        torch.save({
-            'model_state_dict': self.VAE_model.state_dict(),
-        }, file_path)
+        torch.save(self.VAE_model.state_dict(), file_path)
         # print('Save model to ', file_path)
 
     def get_train_history(self):
