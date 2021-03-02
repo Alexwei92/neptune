@@ -12,6 +12,8 @@ def normalize_image(image):
     # Assume input image is np.uint8 type
     # Normalize it to [-1.0, 1.0]
     return image / 255.0 * 2.0 - 1.0
+    # # Normalize it to [0.0, 1.0]
+    # return image / 255.0
 
 # class ImageDataset(Dataset):
 #     '''

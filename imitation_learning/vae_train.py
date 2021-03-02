@@ -37,7 +37,7 @@ class VAETrain():
     def loss_function(self, x_recon, x, mu, logvar):
         MSE = F.mse_loss(x_recon, x, reduction='sum')
         KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-        beta = 8.0
+        beta = 5.0
         return MSE + beta * KLD, MSE, KLD
 
     def train(self, epoch, train_loader):

@@ -82,7 +82,9 @@ if __name__ == '__main__':
         reg_num_prvs = config['train_params']['reg_num_prvs']
         reg_weight_filename = config['train_params']['reg_weight_filename']
         # reg_weight_path = os.path.join(setup_path.parent_dir, model_path, reg_weight_filename)
-        reg_weight_path = os.path.join(setup_path.parent_dir, model_path, 'reg_model.pkl')
+        # reg_weight_path = os.path.join(setup_path.parent_dir, model_path, 'reg_model.pkl')
+        
+        reg_weight_path = os.path.join('/media/lab/Hard Disk', model_path, 'reg_model.pkl')
         controller_agent = RegCtrl(reg_num_prvs, image_size, reg_weight_path, printout=False)
     elif agent_type == 'latent':
         # Latent NN controller

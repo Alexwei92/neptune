@@ -14,25 +14,26 @@ def imshow_np(axis, img):
         img = img.numpy()
     # input image is normalized to [-1,1]
     img = ((img + 1.0) / 2.0 * 255.0).astype(np.uint8)
+    # img = (img * 255.0).astype(np.uint8)
     axis.imshow(cv2.cvtColor(img.transpose(2,1,0), cv2.COLOR_BGR2RGB))
     # plt.axis('off')
 
 if __name__ == '__main__':
 
-    # dataset_dir = '/media/lab/Hard Disk/my_datasets/peng/river/VAE'
-    # output_dir = '/media/lab/Hard Disk/my_outputs/peng/river/VAE'
-    dataset_dir = 'E:/my_datasets/peng/river/VAE'
-    output_dir = 'E:/my_outputs/peng/river/VAE'
+    dataset_dir = '/media/lab/Hard Disk/my_datasets/peng/river/VAE'
+    output_dir = '/media/lab/Hard Disk/my_outputs/peng/river/VAE'
+    # dataset_dir = 'E:/my_datasets/peng/river/VAE'
+    # output_dir = 'E:/my_outputs/peng/river/VAE'
 
     # Parameters
-    z_dim = 25
+    z_dim = 15
     img_resize = (64, 64)
     # train_data = torch.load(os.path.join(dataset_dir, 'train_data.pt'))
     # train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=2)
 
     # Load VAE model
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") 
-    vae_model_filename = 'vae_model_z_25.pt'
+    vae_model_filename = 'vae_model_z_10_new.pt'
     vae_model = MyVAE(z_dim).to(device)
     model = torch.load(os.path.join(output_dir, vae_model_filename))
     vae_model.load_state_dict(model)    
@@ -46,7 +47,7 @@ if __name__ == '__main__':
 
     # 
     vars = [-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0]
-    fig, axes = plt.subplots(5, len(vars))
+    fig, axes = plt.subplots(6, len(vars))
 
     vae_model.eval()
     with torch.no_grad():

@@ -22,5 +22,6 @@ class MyLatent(nn.Module):
 
         # Output layer
         x = self.linear3(x)
+        # x = torch.tanh(x)
 
         return x

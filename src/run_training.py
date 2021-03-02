@@ -140,7 +140,7 @@ if __name__ == '__main__':
             torch.save(test_data, os.path.join(dataset_dir, 'test_data.pt'))
         else:
             train_data = torch.load(os.path.join(dataset_dir, 'train_data.pt'))
-        train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=2)
+        train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=6)
         print('Load VAE datasets successfully!')
 
         # Create the agent

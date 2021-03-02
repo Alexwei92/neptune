@@ -20,3 +20,5 @@ imitation_learning/__pycache__/
 controller/__pycache__/
 
 .idea/
+
+post_processing/__pycache__/

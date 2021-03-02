@@ -106,8 +106,10 @@ def plot_without_heading(win_name, image):
 def imshow_np(img):
     if torch.is_tensor(img):
         img = img.numpy()
-    # input image is normalized to [-1,1]
+    # input image is normalized to [-1.0,1.0]
     img = ((img + 1.0) / 2.0 * 255.0).astype(np.uint8)
+    # input image is normalized to [0.0,1.0]
+    # img = (img * 255.0).astype(np.uint8)
     plt.imshow(cv2.cvtColor(img.transpose(2,1,0), cv2.COLOR_BGR2RGB))
     plt.axis('off')
 
