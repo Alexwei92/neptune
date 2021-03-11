@@ -3,6 +3,7 @@ from matplotlib.ticker import MaxNLocator
 import numpy as np
 import torch
 import cv2
+import torchvision.utils as vutils
 
 class DynamicPlot():
     '''
@@ -121,13 +122,15 @@ def imshow_PIL(img):
     plt.axis('off')
 
 # plot generated and original figure
-def plot_generate_figure(output, original, N):
-    fig = plt.figure()
-    for i in range(N):
-        plt.subplot(2, N, i+1)
-        imshow_np(original[i,:])
-        plt.subplot(2, N, i+1+N)
-        imshow_np(output[i,:])
+def plot_generate_figure(sample_img, generated_img):
+    fig, (ax1, ax2) = plt.subplots(1, 2)
+    grid_img1 = vutils.make_grid(sample_img, normalize=True, range=(-1,1))
+    ax1.imshow(grid_img1.permute(1,2,0))
+    ax1.set_axis_off()
+    grid_img2 = vutils.make_grid(generated_img, normalize=True, range=(-1,1))
+    ax2.imshow(grid_img2.permute(1,2,0))
+    ax2.set_axis_off()
+    plt.tight_layout()
 
 # plot training losses history
 def plot_train_losses(train_history):

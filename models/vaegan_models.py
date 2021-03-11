@@ -2,16 +2,16 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-# CNN output size
-def calculate_Conv2d_size(n_in, kernel_size, stride=1, padding=0, dilation=1):
-    n_out = (n_in + 2 * padding - dilation * (kernel_size - 1) - 1) / stride + 1
-    return int(n_out)
+# custom weights initialization called on netG and netD
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        torch.nn.init.normal_(m.weight, 0.0, 0.02)
+    elif classname.find('BatchNorm') != -1:
+        torch.nn.init.normal_(m.weight, 1.0, 0.02)
+        torch.nn.init.zeros_(m.bias)
 
-def calculate_ConvTranspose2d_size(n_in, kernel_size, stride=1, padding=0, output_padding=0, dilation=1):
-    n_out = (n_in - 1) * stride - 2 * padding + dilation * (kernel_size - 1) + output_padding + 1
-    return int(n_out)
-
-class Dronet(nn.Module):
+class Encoder(nn.Module):
     """
     VAE Encoder
     """
@@ -56,6 +56,15 @@ class Dronet(nn.Module):
         nn.init.kaiming_normal_(self.conv5.weight)
         nn.init.kaiming_normal_(self.conv7.weight)
         nn.init.kaiming_normal_(self.conv8.weight)
+
+    def reparameterize(self, x):
+        mu = x[:, :self.n_z].view(-1, self.n_z)
+        logvar = x[:, self.n_z:].view(-1, self.n_z)
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        z = mu + eps * std
+        kld = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), 1)
+        return z, kld
 
     def forward(self, x):
         # 1) Input
@@ -109,56 +118,9 @@ class Dronet(nn.Module):
 
         return mu, logvar
 
-
-# class Decoder(nn.Module):
-#     """
-#     VAE Decoder
-#     """
-
-#     def __init__(self, n_in):
-#         super().__init__()
-
-#         self.linear = nn.Linear(n_in, 1024)
-#         self.reshape = (-1, 1024, 1, 1)
-
-#         self.deconv1 = nn.ConvTranspose2d(1024, 128, kernel_size=4, stride=1)
-#         self.deconv2 = nn.ConvTranspose2d(128, 64, kernel_size=5, stride=1, dilation=3)
-#         self.deconv3 = nn.ConvTranspose2d(64, 64, kernel_size=6, stride=1, dilation=2)
-#         self.deconv4 = nn.ConvTranspose2d(64, 32, kernel_size=5, stride=2)
-#         self.deconv5 = nn.ConvTranspose2d(32, 16, kernel_size=5, stride=1)
-#         # self.deconv6 = nn.ConvTranspose2d(16, 8, kernel_size=6, stride=2)
-#         self.deconv7 = nn.ConvTranspose2d(16, 3, kernel_size=6, stride=1)
-
-#     def forward(self, x):
-#         x = self.linear(x)
-#         x = x.view(self.reshape)
-
-#         x = self.deconv1(x)
-#         x = F.relu(x)
-
-#         x = self.deconv2(x)
-#         x = F.relu(x)
-
-#         x = self.deconv3(x)
-#         x = F.relu(x)
-
-#         x = self.deconv4(x)
-#         x = F.relu(x)
-
-#         x = self.deconv5(x)
-#         x = F.relu(x)
-
-#         # x = self.deconv6(x)
-#         # x = F.relu(x)
-
-#         x = self.deconv7(x)
-#         x = torch.tanh(x)
-
-#         return x
-
-class Decoder(nn.Module):
+class Generator(nn.Module):
     """
-    VAE Decoder
+    VAE Decoder / GAN Generator
     """
 
     def __init__(self, n_in):
@@ -213,23 +175,74 @@ class Decoder(nn.Module):
 
         return x
 
-
-class MyVAE(nn.Module):
+class Discriminator(nn.Module):
     """
-    Full VAE Model
+    GAN Discriminator
     """
 
-    def __init__(self, input_dim=64, n_z=10):
+    def __init__(self, n_chan=3):
         super().__init__()
-        self.q_img = Dronet(input_dim, n_z, n_chan=3)
-        self.p_img = Decoder(n_in=n_z)
+
+        self.conv0 = nn.Conv2d(n_chan, 64, kernel_size=4, stride=2, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1, bias=False)
+        self.conv3 = nn.Conv2d(256, 512, kernel_size=4, stride=2, padding=1, bias=False)
+        self.conv4 = nn.Conv2d(512, 1, kernel_size=4, stride=1, padding=0, bias=False)
+
+        self.bn1 = nn.BatchNorm2d(128)
+        self.bn2 = nn.BatchNorm2d(256)
+        self.bn3 = nn.BatchNorm2d(512)
+
+        self.convs = nn.Sequential(
+            # input is (nc) x 64 x 64
+            self.conv0,
+            nn.LeakyReLU(0.2, inplace=False),
+            # state size. (ndf) x 32 x 32
+            self.conv1,
+            self.bn1,
+            nn.LeakyReLU(0.2, inplace=False),
+            # state size. (ndf*2) x 16 x 16
+            self.conv2,
+            self.bn2,
+            nn.LeakyReLU(0.2, inplace=False),
+            # state size. (ndf*4) x 8 x 8
+            self.conv3,
+            self.bn3,
+            nn.LeakyReLU(0.2, inplace=False),
+        )
+
+        self.last_layer = nn.Sequential(
+            self.conv4,
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        middle_feature = self.convs(x)
+        output = self.last_layer(middle_feature)
+        return output.squeeze(), middle_feature.squeeze()
+
+    # def similarity(self, x):
+    #     f_d = self.convs(x)
+    #     return f_d.squeeze()
+
+class MyVAEGAN(nn.Module):
+    """
+    Full VAE/GAN Model
+    """
+
+    def __init__(self, input_dim, n_z=20, n_chan=3):
+        super().__init__()
+        self.netE = Encoder(input_dim, n_out=n_z, n_chan=3)
+        self.netG = Generator(n_z)
+        self.netD = Discriminator()
+        self.netG.apply(weights_init)
+        self.netD.apply(weights_init)
         self.n_z = n_z
 
     def encode(self, x):
-        mu, logvar = self.q_img(x)
-        # mu = x[:, :self.n_z].view(-1, self.n_z)
-        # logvar = x[:, self.n_z:].view(-1, self.n_z)
-        return mu, logvar
+        mu, logvar = self.netE(x)
+        z = self.reparameterize(mu, logvar)
+        return z
 
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)
@@ -237,16 +250,18 @@ class MyVAE(nn.Module):
         return mu + eps * std
 
     def decode(self, z):
-        x_recon = self.p_img(z)
+        x_recon = self.netG(z)
         return x_recon
 
-    def forward(self, x):
-        mu, logvar = self.encode(x)
-        z = self.reparameterize(mu, logvar)
-        x_recon = self.decode(z)
-        return x_recon, mu, logvar
+    def discriminate(self, x):
+        label, similarity = self.netD(x)
+        return label, similarity
 
-    def get_latent(self, x):
-        mu, logvar = self.encode(x)
-        z = self.reparameterize(mu, logvar)
-        return z
+    def forward(self, x):
+        z = self.encode(x)
+        x_recon = self.decode(z)
+        return x_recon
+    
+    # def get_latent(self, x):
+    #     z = self.encode(x)
+    #     return z

@@ -1,9 +1,9 @@
 import setup_path
 import torch
-from torch.utils.data import DataLoader
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+from torchvision import transforms
 
 from utils import *
 from models import *
@@ -12,42 +12,46 @@ from imitation_learning import *
 def imshow_np(axis, img):
     if torch.is_tensor(img):
         img = img.numpy()
-    # input image is normalized to [-1,1]
+    # input image is normalized to [-1.0,1.0]
     img = ((img + 1.0) / 2.0 * 255.0).astype(np.uint8)
+    # input image is normalized to [0.0,1.0]
     # img = (img * 255.0).astype(np.uint8)
-    axis.imshow(cv2.cvtColor(img.transpose(2,1,0), cv2.COLOR_BGR2RGB))
+    axis.imshow(img.transpose(2,1,0))
     # plt.axis('off')
+
 
 if __name__ == '__main__':
 
     dataset_dir = '/media/lab/Hard Disk/my_datasets/peng/river/VAE'
     output_dir = '/media/lab/Hard Disk/my_outputs/peng/river/VAE'
-    # dataset_dir = 'E:/my_datasets/peng/river/VAE'
-    # output_dir = 'E:/my_outputs/peng/river/VAE'
 
     # Parameters
-    z_dim = 15
+    z_dim = 10
     img_resize = (64, 64)
-    # train_data = torch.load(os.path.join(dataset_dir, 'train_data.pt'))
-    # train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=2)
 
     # Load VAE model
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") 
-    vae_model_filename = 'vae_model_z_10_new.pt'
-    vae_model = MyVAE(z_dim).to(device)
-    model = torch.load(os.path.join(output_dir, vae_model_filename))
+    model_filename = 'vae_model_z_10.pt'
+    vae_model = MyVAE(img_resize[0], z_dim).to(device)
+    model = torch.load(os.path.join(output_dir, model_filename))
     vae_model.load_state_dict(model)    
 
-    image_raw = cv2.imread('0000487.png', cv2.IMREAD_UNCHANGED)
-    image_resize = cv2.resize(image_raw, (img_resize[1], img_resize[0]))
-    image_norm = normalize_image(image_resize)
-    image_norm = image_norm.transpose((2,1,0)).astype(np.float32)
-    image_tensor = torch.from_numpy(image_norm).unsqueeze(0)
-    
+    image_raw = cv2.imread('0000900.png', cv2.IMREAD_UNCHANGED)
+    image_rgb = cv2.cvtColor(image_raw, cv2.COLOR_BGR2RGB)
+    image_resize = cv2.resize(image_rgb, (img_resize[1], img_resize[0]))
 
-    # 
-    vars = [-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0]
-    fig, axes = plt.subplots(6, len(vars))
+    transform_composed = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((127.5, 127.5, 127.5), (127.5, 127.5, 127.5)), # from [0,255] to [-1,1]
+        ])
+
+
+    # image_tensor = torch.from_numpy(image_norm).unsqueeze(0)
+    image_tensor = transform_composed(image_resize).unsqueeze(0)
+    
+    # Perturbation
+    vars = [-2.0, -1.0, 0.0, 1.0, 2.0] 
+    fig, axes = plt.subplots(5, len(vars))
 
     vae_model.eval()
     with torch.no_grad():

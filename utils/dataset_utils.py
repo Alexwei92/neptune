@@ -1,91 +1,135 @@
 import os
 import torch
 import glob
-# from PIL import Image
 import cv2
 from torch.utils.data import Dataset
 import numpy as np
 import pandas
 import time
+import multiprocessing as mp
+from tqdm import tqdm
 
-def normalize_image(image):
-    # Assume input image is np.uint8 type
-    # Normalize it to [-1.0, 1.0]
-    return image / 255.0 * 2.0 - 1.0
-    # # Normalize it to [0.0, 1.0]
-    # return image / 255.0
-
-# class ImageDataset(Dataset):
-#     '''
-#     Image Dataset Class in numpy
-#     '''
-#     def __init__(self, folder_path, resize, n_chan=3, preload=True):
-#         self.folder_path = folder_path
-#         self.images_np = np.empty((0, resize[0], resize[1], n_chan), dtype=np.float32)
-
-#         for subfolder in os.listdir(folder_path):
-#             subfolder_path = os.path.join(folder_path, subfolder)
-#             print(subfolder_path)
-#             default_filepath = os.path.join(subfolder_path, 'image_data_preload.pt')
-#             if preload and os.path.isfile(default_filepath):
-#                 images_np = torch.load(default_filepath)
-#             else:   
-#                 file_list = glob.glob(os.path.join(subfolder_path, 'color', '*.png'))
-#                 file_list.sort()
-#                 images_np = np.zeros((len(file_list), resize[0], resize[1], n_chan), dtype=np.float32)
-#                 idx = 0
-#                 for file in file_list:
-#                     img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
-#                     img = cv2.resize(img, (resize[1], resize[0]))
-#                     img = normalize_image(img)
-#                     images_np[idx, :] = img[:,:,:n_chan]
-#                     idx += 1
-#                     if idx == len(file_list):
-#                         break
-                
-#                 torch.save(images_np, default_filepath)
-                
-#             self.images_np = np.concatenate((self.images_np, images_np), axis=0)
-
-#     def __len__(self):
-#         return len(self.images_np)
-
-#     def __getitem__(self, idx):
-#         if torch.is_tensor(idx):
-#             idx = idx.tolist()
-
-#         return self.images_np[idx, :].transpose((2,1,0))
-
-class ImageDataset(Dataset):
+class ImageDataset_simple(Dataset):
     '''
-    Image Dataset Class in numpy
+    Image Dataset Class in numpy (simple version)
     '''
-    def __init__(self, folder_path, resize, n_chan=3):
-        self.folder_path = folder_path
-        self.resize = resize
-        self.n_chan = n_chan
-        self.file_list = []
+    def __init__(self, folder_path, resize, in_channels=3, preload=True, transform=None):
+        self.images_np = np.empty((0, resize[0], resize[1], in_channels), dtype=np.float32)
+        self.filename = 'image_data_preload.pt'
+        self.transform = transform
 
+        # Configure
+        self.configure(folder_path, resize, in_channels, preload)
+
+    def configure(self, folder_path, resize, in_channels, preload):
+        jobs = [] # use multi-core
+        pool = mp.Pool(min(12, mp.cpu_count())) # use how many cores
         for subfolder in os.listdir(folder_path):
             subfolder_path = os.path.join(folder_path, subfolder)
- 
-            file_list = glob.glob(os.path.join(subfolder_path, 'color', '*.png'))
-            file_list.sort()
-            self.file_list.extend(file_list)
+            save_to_filepath = os.path.join(subfolder_path, self.filename)
+
+            if preload and os.path.isfile(save_to_filepath):
+                jobs.append(pool.apply_async(torch.load, args=(save_to_filepath,)))
+            else:   
+                jobs.append(pool.apply_async(self.get_images, args=(subfolder_path, save_to_filepath, resize, in_channels)))
+
+               
+        for proc in tqdm(jobs):
+            images_np = proc.get()
+            self.images_np = np.concatenate((self.images_np, images_np), axis=0)        
+    
+        
+    def get_images(self, subfolder_path, save_to_filepath, resize, in_channels=3):
+        file_list = glob.glob(os.path.join(subfolder_path, 'color', '*.png'))
+        file_list.sort()
+        images_np = np.zeros((len(file_list), resize[0], resize[1], in_channels), dtype=np.float32)
+        idx = 0
+        for file, idx in zip(file_list, range(len(file_list))):
+            img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img = cv2.resize(img, (resize[1], resize[0]))
+            images_np[idx, :] = img[:,:,:in_channels]
+
+        # Save output for future uses
+        torch.save(images_np, save_to_filepath)
+        return images_np
 
     def __len__(self):
-        return len(self.file_list)
+        return len(self.images_np)
 
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        img = cv2.imread(self.file_list[idx], cv2.IMREAD_UNCHANGED)
-        img = cv2.resize(img, (self.resize[1], self.resize[0]))
-        img = normalize_image(img)
-        image_np = img[:,:,:self.n_chan].astype(np.float32)
-            
-        return image_np.transpose((2,1,0))
+        output = self.images_np[idx, :]
+        if self.transform:
+            output = self.transform(output)
+
+        return output
+    
+class ImageDataset_advanced(Dataset):
+    '''
+    Image Dataset Class in numpy (advanced version)
+    '''
+    def __init__(self, dataset_dir, subject_list, map_list, iter, resize, in_channels=3, preload=True, transform=None):
+        self.images_np = np.empty((0, resize[0], resize[1], in_channels), dtype=np.float32)
+        self.filename = 'image_data_preload.pt'
+        self.transform = transform
+        
+        # Configure
+        self.configure(dataset_dir, subject_list, map_list, iter, resize, in_channels, preload)
+
+    def configure(self, dataset_dir, subject_list, map_list, iter, resize, in_channels, preload):
+        jobs = [] # use multi-core
+        pool = mp.Pool(min(4, mp.cpu_count())) # use how many cores
+        iteration = 'iter' + str(iter)
+        for subject in subject_list:
+            for map in os.listdir(os.path.join(dataset_dir, subject)):
+                if map in map_list:
+                    folder_path = os.path.join(dataset_dir, subject, map, iteration)
+                    for subfolder in os.listdir(folder_path):
+                        subfolder_path = os.path.join(folder_path, subfolder)
+                        save_to_filepath = os.path.join(subfolder_path, self.filename)
+
+                        if preload and os.path.isfile(save_to_filepath):
+                            jobs.append(pool.apply_async(torch.load, args=(save_to_filepath,)))
+                        else:   
+                            jobs.append(pool.apply_async(self.get_images, args=(subfolder_path, save_to_filepath, resize, in_channels)))
+      
+        for proc in tqdm(jobs):
+            images_np = proc.get()
+            self.images_np = np.concatenate((self.images_np, images_np), axis=0)        
+
+        pool.close()    
+
+    def get_images(self, subfolder_path, save_to_filepath, resize, in_channels=3):
+        file_list = glob.glob(os.path.join(subfolder_path, 'color', '*.png'))
+        file_list.sort()
+        images_np = np.zeros((len(file_list), resize[0], resize[1], in_channels), dtype=np.float32)
+        idx = 0
+        for file, idx in zip(file_list, range(len(file_list))):
+            img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img = cv2.resize(img, (resize[1], resize[0]))
+            images_np[idx, :] = img[:,:,:in_channels]
+
+        # save output for future uses
+        torch.save(images_np, save_to_filepath)
+        return images_np
+
+    def __len__(self):
+        return len(self.images_np)
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        
+        output = self.images_np[idx, :]
+        if self.transform:
+            output = self.transform(output)
+
+        return output
+
 
 class LatentDataset(Dataset):
     '''

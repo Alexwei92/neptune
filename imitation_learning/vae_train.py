@@ -95,6 +95,9 @@ class VAETrain():
         z = self.VAE_model.get_latent(x)
         return z
 
+    def get_current_epoch(self):
+        return self.epoch[-1]
+
     def plot_generate_result(self, data_loader, N=6):
         examples = enumerate(data_loader)
         batch_idx, example_data = next(examples)

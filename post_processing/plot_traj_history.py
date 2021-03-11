@@ -1,20 +1,29 @@
+"""
+Plot the trajectories 
+"""
 import csv
 import numpy as np
 import os
 import pandas
 import matplotlib.pyplot as plt
 
+# Auxiliary functions
 def plot_start_point(axis, pos_x, pos_y):
     axis.scatter(pos_x, pos_y, s=50, color='g', marker='o', alpha=0.5)
+
+def plot_end_point(axis, pos_x, pos_y):
+    axis.scatter(pos_x, pos_y, s=25, color='c', facecolors='none', marker='s', alpha=0.5)
 
 def plot_crash_point(axis, pos_x, pos_y):
     axis.scatter(pos_x, pos_y, s=50, color='r', marker='x', alpha=1)
 
-def plot_one_trail(axis, pos_x, pos_y, is_crash, color='b'):
+def plot_one_trail(axis, pos_x, pos_y, is_crashed, color='b'):
     axis.plot(pos_x, pos_y, linewidth=1.5, color=color, alpha=0.5)
     plot_start_point(axis, pos_x[0], pos_y[0])
-    if is_crash:
+    if is_crashed:
         plot_crash_point(axis, pos_x[-1], pos_y[-1])
+    else:
+        plot_end_point(axis, pos_x[-1], pos_y[-1])
 
 def read_data(folder_path, axis):
     N = 0
@@ -40,7 +49,8 @@ def read_data(folder_path, axis):
 
 if __name__ == '__main__':
 
-    dataset_dir = 'E:\my_datasets'
+    dataset_dir = '/media/lab/Hard Disk/' + 'my_datasets'
+    
     # Subject list
     subject_list = [
         'subject1',
@@ -50,6 +60,9 @@ if __name__ == '__main__':
         'subject5',
         'subject6',
         'subject7',
+        'subject8',
+        'subject9',
+        'subject10',
     ]
     # Map list
     map_list = [
@@ -65,9 +78,14 @@ if __name__ == '__main__':
         'o2',
     ]
 
+    # Iteration
+    iteration = 'iter0'
+
+    # Init the plot
+    # fig, axes = plt.subplots(2, 5, sharex=True, sharey=True)
     fig, axes = plt.subplots(2, 5, sharex=False, sharey=False)
 
-    iteration = 'iter0'
+    # Start the loop
     N_data = [0 for map in map_list]
     counter = [[0, 0] for map in map_list]
     for subject in subject_list:
@@ -80,10 +98,11 @@ if __name__ == '__main__':
                 counter[index][0] += num_success
                 counter[index][1] += num_failure
 
-    [print('{:s}: {:d}, s:{:d} / f:{:d}'.format(map_list[i], N_data[i], counter[i][0], counter[i][1])) \
+    [print('{:s}: {:d} (s={:d}, f={:d})'.format(map_list[i], N_data[i], counter[i][0], counter[i][1])) \
                                          for i in range(len(N_data))] 
     print('Total samples = {:d}'.format(sum(N_data)))
      
+    # Success rate
     for axis, map, count in zip(axes.flat, map_list, counter):
         if sum(count) == 0:
             success_rate = 0
@@ -95,4 +114,5 @@ if __name__ == '__main__':
         # axis.axis('image')
         axis.set_xticks([])
         axis.set_yticks([])
+    
     plt.show()

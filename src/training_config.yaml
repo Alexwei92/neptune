@@ -1,0 +1,60 @@
+## Training parameters
+train_params:
+  folder_path:                '/media/lab/Hard Disk' # leave it '' if you read/write data in the current folder, 
+                                                     # otherwise specify the path (e.g., on hard disk)
+  dataset_dir:                'my_datasets/' # source datasets path
+  output_dir:                 'my_outputs/' # save output to this path
+
+  result_only:                False # this will diable all the trainings and only display the existing results
+  
+  # Regression training
+  train_reg:                  False # enable train linear regression weights
+  preload_sample:             True # preload samples from file
+  reg_num_prvs:               5 # number of previous cmd to use
+  reg_type:                   'Ridge' # {'Ridge', 'LinearRegression', 'BayesianRidge'}
+  reg_weight_filename:        'reg_weight.csv' # regression weight filename
+  reg_model_filename:         'reg_model.pkl' # regression trained model filename
+  use_multicore:              True # this will use multiple cpu cores to train the model
+  
+  # VAE training
+  train_vae:                  True # enable train VAE model
+  model_type:                 'vaegan' # {'vae', 'vaegan', 'gan'}
+  dataloader_type:            'advanced' # {'simple', 'advanced'}
+  img_resize:                 (64, 64) # resize image before VAE, right now only support (64, 64)
+
+  vae_z_dim:                  25 # latent dimension
+  vae_n_epochs:               350 # number of oepochs
+  vae_batch_size:             625 # batch size (better be a square number)
+  vae_checkpoint_filename:    'vae_checkpoint_z_25.pt' # checkpoint file name
+  vae_checkpoint_preload:     False # preload a VAE checkpoint
+  vae_model_filename:         'vae_model_z_25.pt' # save VAE model to this file name
+  vae_learning_rate:          0.001 # learning rate
+  vae_generate_samples:       True # generate sample images
+
+  vaegan_z_dim:               25 # latent dimension
+  vaegan_n_epochs:            100 # number of oepochs
+  vaegan_batch_size:          64 # batch size
+  vaegan_checkpoint_filename: 'vaegan_checkpoint_z_25.pt' # checkpoint file name
+  vaegan_checkpoint_preload:  False # preload a VAE checkpoint
+  vaegan_model_filename:      'vaegan_model_z_25.pt' # save VAE model to this file name
+  vaegan_learning_rate:       0.0003 # learning rate
+  vaegan_generate_samples:    True # generate sample images
+  
+  gan_z_dim:                  64 # latent dimension
+  gan_n_epochs:               200 # number of oepochs
+  gan_batch_size:             512 # batch size
+  gan_checkpoint_filename:    'gan_checkpoint_z_10.pt' # checkpoint file name
+  gan_checkpoint_preload:     False # preload a VAE checkpoint
+  gan_model_filename:         'gan_model_z_10.pt' # save VAE model to this file name
+  gan_learning_rate:          0.0002 # learning rate
+  gan_generate_samples:       True # generate sample images
+  
+  # NN control network training
+  train_latent:               False  # enable train latent controller network model
+  latent_n_epochs:            200 # number of epochs
+  latent_batch_size:          32 # batch size
+  latent_checkpoint_filename: 'latent_checkpoint_z_15.pt' # latent controller checkpoint file name
+  latent_checkpoint_preload:  True # preload a latent controller checkpoint
+  latent_model_filename:      'latent_model_z_15.pt' # save latent controller model to this file name
+  latent_num_prvs:            5 # number of previous cmd to use
+  latent_learning_rate:       0.001 # learning rate

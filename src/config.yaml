@@ -1,12 +1,12 @@
 ## Simulation parameters
 sim_params:
   loop_rate:                  10.0 # Hz
-  output_dir:                 'my_datasets/subject8/o2/iter0' # save data to this folder
+  output_dir:                 'my_datasets/subject10/o2/iter0' # save data to this folder
   folder_path:                '/media/lab/Hard Disk' # leave it '' if you read/write data in the current folder,
                                                      # otherwise specify the path (e.g., on hard disk)
   save_data:                  True # {True, False}
 
-  train_mode:                 'test' # {'train', 'test'}
+  train_mode:                 'train' # {'train', 'test'}
   agent_type:                 'none' # {'none', 'reg', 'latent'}
   dagger_type:                'none' # {'none', 'vanilla', 'hg'}
 
@@ -67,14 +67,21 @@ train_params:
   
   # VAE training
   train_vae:                  True # enable train VAE model
-  z_dim:                      25 # latent dimension
+  z_dim:                      10 # latent dimension
   img_resize:                 (64, 64) # resize image before VAE, right now only support (64, 64)
-  vae_n_epochs:               412 # number of epochs
-  vae_batch_size:             512 # batch size
-  vae_checkpoint_filename:    'vae_checkpoint_z_25.pt' # checkpoint file name
+  vae_n_epochs:               150 # number of oepochs
+  vae_batch_size:             625 # batch size (better be a square number)
+  vae_checkpoint_filename:    'vae_checkpoint_z_10_new.pt' # checkpoint file name
   vae_checkpoint_preload:     True # preload a VAE checkpoint
-  vae_model_filename:         'vae_model_z_25.pt' # save VAE model to this file name
+  vae_model_filename:         'vae_model_z_10_new.pt' # save VAE model to this file name
   vae_learning_rate:          0.001 # learning rate
+
+  vaegan_n_epochs:               200 # number of oepochs
+  vaegan_batch_size:             512 # batch size
+  vaegan_checkpoint_filename:    'vaegan_checkpoint_z_10.pt' # checkpoint file name
+  vaegan_checkpoint_preload:     False # preload a VAE checkpoint
+  vaegan_model_filename:         'vaegan_model_z_10.pt' # save VAE model to this file name
+  vaegan_learning_rate:          0.001 # learning rate
   
   # NN control network training
   train_latent:               False  # enable train latent controller network model
