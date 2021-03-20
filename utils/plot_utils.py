@@ -136,19 +136,19 @@ def plot_generate_figure(sample_img, generated_img):
 def plot_train_losses(train_history):
     if len(train_history) == 4:
         # VAE result
-        epoch, total_losses, MSE_losses, KLD_losses = train_history
+        iteration, total_losses, MSE_losses, KLD_losses = train_history
 
         fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
-        ax1.plot(epoch, KLD_losses, color='blue')
+        ax1.plot(iteration, KLD_losses, color='blue')
         ax1.legend(['KLD Loss'], loc='upper right')
-        ax2.plot(epoch, MSE_losses, color='blue')
+        ax2.plot(iteration, MSE_losses, color='blue')
         ax2.legend(['MSE Loss'], loc='upper right')
         ax2.set_ylabel('Loss')
-        ax3.plot(epoch, total_losses, color='blue')
+        ax3.plot(iteration, total_losses, color='blue')
         ax3.legend(['Total Loss'], loc='upper right')
         ax3.xaxis.set_major_locator(MaxNLocator(integer=True))
-        plt.xlabel('Epoch')
-        # plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
+        plt.xlabel('# of iter')
+        plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
         
     elif len(train_history) == 2:
         # latent result
@@ -161,5 +161,69 @@ def plot_train_losses(train_history):
         plt.xlabel('Epoch')
         # plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
         plt.title('NN Control training result')
+    
+    elif len(train_history) == 3:
+        # GAN result
+        iteration, netG_losses, netD_losses = train_history
+
+        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+        ax1.plot(iteration, netG_losses, color='blue')
+        ax1.legend(['Generator Loss'], loc='upper right')
+        ax2.plot(iteration, netD_losses, color='blue')
+        ax2.legend(['Discriminator Loss'], loc='upper right')
+        ax2.xaxis.set_major_locator(MaxNLocator(integer=True))
+        plt.xlabel('# of iter')
+        plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
     else:
         pass
+
+# plot dimension-wise KLD losses
+def plot_KLD_losses(iteration, kld_losses_z, skip_N=100, plot_mean=True, plot_sum=True):
+
+    z_dim = len(kld_losses_z[0])
+    kld_z_dict = {}
+    for i in range(z_dim):
+        kld_z_dict[str(i)] = []
+
+    for step in kld_losses_z:
+        for value, idx in zip(step, range(z_dim)):
+            kld_z_dict[str(idx)].append(value)
+
+    labels = []
+    for i in range(len(kld_losses_z[0])):
+        labels.append('z_' + str(i))
+    
+    if plot_mean:
+        kld_losses_mean = []
+        labels.append('mean')
+    if plot_sum:
+        kld_losses_sum = []
+        labels.append('total')
+
+    for value in kld_losses_z:
+        if plot_mean:
+            kld_losses_mean.append(value.mean())
+        if plot_sum:
+            kld_losses_sum.append(value.sum())
+
+    fig, ax = plt.subplots(1,1)
+    smooth_weight = 0.6
+    for kld_z in kld_z_dict.values():
+        ax.plot(iteration[skip_N:], exp_smooth(kld_z[skip_N:], smooth_weight))
+    if plot_mean:
+        ax.plot(iteration[skip_N:], exp_smooth(kld_losses_mean[skip_N:], smooth_weight), '--', color='k', alpha=0.8)
+    if plot_sum:
+        ax.plot(iteration[skip_N:], exp_smooth(kld_losses_sum[skip_N:], smooth_weight), '-', color='r', alpha=1.0)
+    plt.legend(labels) 
+    plt.xlabel('# of iter')
+    plt.title('KLD dimension-wise')
+
+def exp_smooth(data, weight=0.6):  # Weight between 0 and 1
+    last = data[0]  # First value in the plot (first timestep)
+    smoothed = []
+    for point in data:
+        smoothed_val = last * weight + (1 - weight) * point  # Calculate smoothed value
+        smoothed.append(smoothed_val)                        # Save it
+        last = smoothed_val                                  # Anchor the last smoothed value
+
+    return smoothed

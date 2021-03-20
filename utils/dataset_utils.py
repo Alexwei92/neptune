@@ -2,12 +2,31 @@ import os
 import torch
 import glob
 import cv2
-from torch.utils.data import Dataset
+import shutil
+from torch.utils.data import Dataset, DataLoader
+import torchvision.utils as vutils
 import numpy as np
 import pandas
 import time
 import multiprocessing as mp
 from tqdm import tqdm
+
+# Generate a sample folder
+def genereate_sample_folder(folder_path, test_loader, checkpoint_preload, num_workers=6):
+    if not checkpoint_preload and os.path.isdir(folder_path):
+        shutil.rmtree(folder_path)
+    if not os.path.isdir(folder_path):
+        os.makedirs(folder_path)
+        _, example_data = next(enumerate(test_loader)) 
+        torch.save(example_data, os.path.join(folder_path, 'sample_image_data.pt'))
+        vutils.save_image(example_data,
+                        os.path.join(folder_path, 'sample_image.png'),
+                        normalize=True,
+                        range=(-1,1))
+    else:
+        example_data = torch.load(os.path.join(folder_path, 'sample_image_data.pt'))
+    
+    return example_data
 
 class ImageDataset_simple(Dataset):
     '''

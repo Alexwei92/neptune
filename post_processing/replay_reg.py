@@ -12,8 +12,8 @@ from feature_extract import *
 from imitation_learning import exponential_decay
 
 if __name__ == '__main__':
-    folder_path = setup_path.parent_dir + '/my_datasets/subject2/map7/iter0/2021_Feb_21_11_29_55'
-    weight_path = setup_path.parent_dir + '/my_outputs/peng/river/iter0/reg_weight.csv'
+    folder_path = '/media/lab/Hard Disk/my_datasets/subject4/map5/iter0/2021_Feb_21_15_25_53'
+    weight_path = '/media/lab/Hard Disk/my_outputs/subject4/reg_weight.csv'
 
     # load weight
     weight = np.genfromtxt(weight_path, delimiter=',')

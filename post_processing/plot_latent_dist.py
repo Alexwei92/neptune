@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 from torchvision import transforms
 from sklearn.model_selection import train_test_split
+from scipy.stats import norm
 
 from utils import *
 from models import *

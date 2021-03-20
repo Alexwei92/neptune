@@ -5,6 +5,7 @@ import cv2
 import matplotlib.pyplot as plt
 from torchvision import transforms
 
+from configs import 
 from utils import *
 from models import *
 from imitation_learning import *
@@ -22,15 +23,18 @@ def imshow_np(axis, img):
 
 if __name__ == '__main__':
 
-    dataset_dir = '/media/lab/Hard Disk/my_datasets/peng/river/VAE'
-    output_dir = '/media/lab/Hard Disk/my_outputs/peng/river/VAE'
+    dataset_dir = '/media/lab/Hard Disk/my_datasets/test'
+    output_dir = '/media/lab/Hard Disk/my_outputs/test2'
 
     # Parameters
+    model_type = 'vanilla_vae'
+
+
     z_dim = 10
     img_resize = (64, 64)
 
     # Load VAE model
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") 
+    device = torch.device("cuda:0")
     model_filename = 'vae_model_z_10.pt'
     vae_model = MyVAE(img_resize[0], z_dim).to(device)
     model = torch.load(os.path.join(output_dir, model_filename))
@@ -60,7 +64,7 @@ if __name__ == '__main__':
         for i in range(len(axes)):
             for value, axis in zip(vars, axes[i]):
                 z_new_cpu = z_raw_cpu.copy()
-                index = i + 0
+                index = i + 5
                 z_new_cpu[0, index] += value
                 z_new_gpu = torch.from_numpy(z_new_cpu.astype(np.float32)).unsqueeze(0).to(device)
                 image_pred = vae_model.decode(z_new_gpu).cpu().squeeze(0)

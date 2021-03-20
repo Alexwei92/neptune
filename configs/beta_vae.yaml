@@ -1,0 +1,28 @@
+model_params:
+  name:                   'BetaVAE'
+  in_channels:            3
+  z_dim:                  10
+  input_dim:              64
+  loss_type:              'B' # {'H', 'B'}
+  # loss_type == 'H' (https://openreview.net/forum?id=Sy2fzU9gl)
+  beta:                   3.0
+  # loss_type == 'B' (https://arxiv.org/pdf/1804.03599.pdf)
+  gamma:                  10.0
+  C_max:                  25
+  C_stop_iter:            10000
+
+train_params:
+  batch_size:             128
+  n_epochs:               500
+  learning_rate:          0.0005
+  weight_decay:           0.0
+  manual_seed:            11
+
+log_params:
+  name:                   'beta_vae'
+  model_filename:         'beta_vae_model'
+  checkpoint_filename:    'beta_vae_checkpoint'   
+  log_interval:           5
+  checkpoint_preload:     False
+  generate_samples:       True
+  use_tensorboard:        True

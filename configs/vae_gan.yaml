@@ -1,0 +1,23 @@
+model_params:
+  name:                   'VAEGAN'
+  in_channels:            3
+  z_dim:                  10
+  input_dim:              64  
+
+train_params:
+  batch_size:             128
+  n_epochs:               600
+  netE_learning_rate:     0.0005
+  netG_learning_rate:     0.0005
+  netD_learning_rate:     0.0001
+  weight_decay:           0.0
+  manual_seed:            11
+
+log_params:
+  name:                   'vae_gan'
+  model_filename:         'vaegan_model'
+  checkpoint_filename:    'vaegan_checkpoint'
+  log_interval:           5
+  checkpoint_preload:     False
+  generate_samples:       True
+  use_tensorboard:        True

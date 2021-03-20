@@ -1,0 +1,21 @@
+model_params:
+  name:                   'VanillaVAE'
+  in_channels:            3
+  z_dim:                  10
+  input_dim:              64
+
+train_params:
+  batch_size:             128
+  n_epochs:               10
+  learning_rate:          0.0005
+  weight_decay:           0.0
+  manual_seed:            11
+
+log_params:
+  name:                   'vanilla_vae'
+  model_filename:         'vanilla_vae_model'
+  checkpoint_filename:    'vanilla_vae_checkpoint'
+  log_interval:           5
+  checkpoint_preload:     False
+  generate_samples:       True
+  use_tensorboard:        True

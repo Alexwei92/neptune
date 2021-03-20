@@ -1,0 +1,22 @@
+model_params:
+  name:                   'DCGAN'
+  in_channels:            3
+  z_dim:                  64  
+  input_dim:              64  
+
+train_params:
+  batch_size:             128
+  n_epochs:               500
+  netG_learning_rate:     0.0002
+  netD_learning_rate:     0.0002
+  weight_decay:           0.0
+  manual_seed:            11
+
+log_params:
+  name:                   'dc_gan'
+  model_filename:         'dc_gan_model'
+  checkpoint_filename:    'dc_gan_checkpoint'
+  log_interval:           5
+  checkpoint_preload:     False
+  generate_samples:       True
+  use_tensorboard:        True
