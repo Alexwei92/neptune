@@ -1,22 +1,22 @@
 model_params:
-  name:                   'VanillaVAE'
+  name:                   'LatentNN'
   in_channels:            3
   z_dim:                  30
-  input_dim:              64
+  num_prvs:               5
+  prvs_mode:              'linear' # {'exponential', 'linear'}
 
 train_params:
-  batch_size:             128
-  n_epochs:               150
+  batch_size:             256
+  n_epochs:               300
   optimizer:
     type:                 'Adam'
-    learning_rate:        0.0005
+    learning_rate:        0.001
     betas:                (0.9, 0.999)
     weight_decay:         0.0
   manual_seed:            1234
 
 log_params:
-  name:                   'vanilla_vae'
+  name:                   'latent_nn_simple'
   log_interval:           5
-  checkpoint_preload:     True
-  generate_samples:       True
+  checkpoint_preload:     False
   use_tensorboard:        True

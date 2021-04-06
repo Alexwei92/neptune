@@ -5,7 +5,6 @@ import os
 import numpy as np
 import yaml
 import threading
-import random
 
 import airsim
 from utils import *
@@ -15,7 +14,7 @@ if __name__ == '__main__':
 
     # Read YAML configurations
     try:
-        file = open('config.yaml', 'r')
+        file = open('api_config.yaml', 'r')
         config = yaml.safe_load(file)
         file.close()
     except Exception as error:
@@ -44,8 +43,7 @@ if __name__ == '__main__':
     mission_height = config['ctrl_params']['mission_height']
     image_size = eval(config['ctrl_params']['image_size'])
     use_rangefinder = config['ctrl_params']['use_rangefinder']
-    model_path = config['ctrl_params']['model_path']
-
+    
     # Joystick/RC settings
     joy = Joystick(config['rc_params']['device_id']) 
     yaw_axis = config['rc_params']['yaw_axis']
@@ -79,25 +77,27 @@ if __name__ == '__main__':
     # Control Agent Init
     if agent_type == 'reg':
         # Linear regression controller
-        reg_num_prvs = config['train_params']['reg_num_prvs']
-        reg_weight_filename = config['train_params']['reg_weight_filename']
-        # reg_weight_path = os.path.join(setup_path.parent_dir, model_path, reg_weight_filename)
-        # reg_weight_path = os.path.join(setup_path.parent_dir, model_path, 'reg_model.pkl')
-        
-        reg_weight_path = os.path.join('/media/lab/Hard Disk', model_path, 'reg_model.pkl')
-        controller_agent = RegCtrl(reg_num_prvs, image_size, reg_weight_path, printout=False)
+        num_prvs = config['agent_params']['reg_num_prvs']
+        prvs_mode = config['agent_params']['reg_prvs_mode']
+        model_path = config['agent_params']['reg_model_path']
+        model_path = os.path.join(folder_path, model_path)
+        controller_agent = RegCtrl(num_prvs, prvs_mode, image_size, model_path, printout=False)
     elif agent_type == 'latent':
         # Latent NN controller
-        z_dim = config['train_params']['z_dim']
-        img_resize = eval(config['train_params']['img_resize'])
-        latent_num_prvs = config['train_params']['latent_num_prvs']
-        vae_model_path = os.path.join(setup_path.parent_dir, model_path, 'vae_model_z_15.pt')
-        latent_model_path = os.path.join(setup_path.parent_dir, model_path, 'latent_model_z_15.pt')
-        controller_agent = LatentCtrl(vae_model_path, latent_model_path, z_dim, latent_num_prvs, img_resize)
+        img_resize = (64, 64)
+        vae_model_path = os.path.join(folder_path, config['agent_params']['vae_model_path'])
+        vae_model_type = config['agent_params']['vae_model_type']
+        latent_model_path = os.path.join(folder_path, config['agent_params']['latent_model_path'])
+        latent_model_type = config['agent_params']['latent_model_type']
+        controller_agent = LatentCtrl(vae_model_path,
+                                vae_model_type,
+                                latent_model_path,
+                                latent_model_type,
+                                img_resize)
     elif agent_type == 'none':
         # Manual control
         dagger_type = 'none'
-        print_msg('No agent controller enabled.')
+        print_msg('Agent controller disabled.')
     else:
         print_msg('Unknow agent_type: ' + agent_type, type=3)
         exit()
@@ -111,10 +111,8 @@ if __name__ == '__main__':
 
     # Reset function
     def reset():
-        if fast_loop.agent_type == 'reg':
+        if fast_loop.agent_type is not 'none':
             fast_loop.controller.reset_cmd_history()
-        if fast_loop.agent_type == 'latent':
-            controller_agent.reset_prvs()
         if save_data:
             data_logger.reset_folder('crashed')
         if plot_trajectory:
@@ -150,19 +148,16 @@ if __name__ == '__main__':
                     data_logger.reset_folder('safe')
                     fast_loop.manual_stop = False
 
-                if fast_loop.virtual_crash:
-                    # when the pilot think it may crash
-                    data_logger.reset_folder('virtual_crash')
-                    fast_loop.virtual_crash = False
+                # if fast_loop.virtual_crash:
+                #     # when the pilot think it may crash
+                #     data_logger.reset_folder('virtual_crash')
+                #     fast_loop.virtual_crash = False
 
                 if fast_loop.flight_mode == 'mission':
-                    if (dagger_type == 'hg') and (not fast_loop.is_expert):
-                        # in Hg-dagger, only log data in manual mode
-                        pass
-                    else:
-                        data_logger.save_image('color', fast_loop.image_color)
-                        data_logger.save_image('depth', fast_loop.image_depth)
-                        data_logger.save_csv(fast_loop.drone_state.timestamp, fast_loop.drone_state.kinematics_estimated, fast_loop.pilot_cmd)
+                    data_logger.save_image('color', fast_loop.image_color)
+                    data_logger.save_image('depth', fast_loop.image_depth)
+                    data_logger.update_flag(fast_loop.is_expert)
+                    data_logger.save_csv(fast_loop.drone_state.timestamp, fast_loop.drone_state.kinematics_estimated, fast_loop.pilot_cmd)
 
             # Update agent controller command
             if (not fast_loop.is_expert) and (fast_loop.flight_mode == 'mission'):
@@ -170,7 +165,8 @@ if __name__ == '__main__':
                     fast_loop.agent_cmd = controller_agent.predict(fast_loop.image_color, fast_loop.image_depth, \
                                                                 fast_loop.get_yaw_rate(), fast_loop.controller.cmd_history)
                 elif agent_type == 'latent':
-                    fast_loop.agent_cmd = controller_agent.predict(fast_loop.image_color, fast_loop.get_yaw_rate())
+                    fast_loop.agent_cmd = controller_agent.predict(fast_loop.image_color, fast_loop.get_yaw_rate(), \
+                                                                fast_loop.controller.cmd_history)
                 else:
                     raise Exception('You must define an agent controller type!')
 

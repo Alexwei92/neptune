@@ -33,7 +33,8 @@ class DynamicPlot():
 
 # Plot image with cmd
 # input is normalized to [-0.5, 0.5]
-def plot_with_cmd(win_name, image, input, is_expert):
+def plot_with_cmd(win_name, image_raw, input, is_expert):
+    image = image_raw.copy()
     height = image.shape[0]
     width = image.shape[1]
     # plot box
@@ -56,7 +57,8 @@ def plot_with_cmd(win_name, image, input, is_expert):
 
 # Plot image with cmds to compare
 # input is normalized to [-0.5, 0.5]
-def plot_with_cmd_compare(win_name, image, pilot_input, agent_input):
+def plot_with_cmd_compare(win_name, image_raw, pilot_input, agent_input):
+    image = image_raw.copy()
     height = image.shape[0]
     width = image.shape[1]
     # plot box
@@ -78,7 +80,8 @@ def plot_with_cmd_compare(win_name, image, pilot_input, agent_input):
     cv2.imshow(win_name, image) 
 
 # Plot image with heading
-def plot_with_heading(win_name, image, input, is_expert):
+def plot_with_heading(win_name, image_raw, input, is_expert):
+    image = image_raw.copy()
     height = image.shape[0]
     width = image.shape[1]
     # plot box
@@ -133,90 +136,71 @@ def plot_generate_figure(sample_img, generated_img):
     plt.tight_layout()
 
 # plot training losses history
-def plot_train_losses(train_history):
-    if len(train_history) == 4:
-        # VAE result
-        iteration, total_losses, MSE_losses, KLD_losses = train_history
-
-        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
-        ax1.plot(iteration, KLD_losses, color='blue')
-        ax1.legend(['KLD Loss'], loc='upper right')
-        ax2.plot(iteration, MSE_losses, color='blue')
-        ax2.legend(['MSE Loss'], loc='upper right')
-        ax2.set_ylabel('Loss')
-        ax3.plot(iteration, total_losses, color='blue')
-        ax3.legend(['Total Loss'], loc='upper right')
-        ax3.xaxis.set_major_locator(MaxNLocator(integer=True))
-        plt.xlabel('# of iter')
-        plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
-        
-    elif len(train_history) == 2:
-        # latent result
-        epoch, total_losses = train_history
-
-        fig, ax = plt.subplots(1,1)
-        ax.plot(epoch, total_losses, color='blue')
-        ax.legend(['Loss'], loc='upper right')
-        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-        plt.xlabel('Epoch')
-        # plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
-        plt.title('NN Control training result')
-    
-    elif len(train_history) == 3:
-        # GAN result
-        iteration, netG_losses, netD_losses = train_history
-
-        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
-        ax1.plot(iteration, netG_losses, color='blue')
-        ax1.legend(['Generator Loss'], loc='upper right')
-        ax2.plot(iteration, netD_losses, color='blue')
-        ax2.legend(['Discriminator Loss'], loc='upper right')
-        ax2.xaxis.set_major_locator(MaxNLocator(integer=True))
-        plt.xlabel('# of iter')
-        plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
+def plot_train_losses(train_history, save_path=None):
+    iteration, loss_history_raw = train_history
+    loss_history = loss_history_raw.copy()
+    if 'kld_loss_z' in loss_history:
+        N = len(loss_history) - 1
+        del loss_history['kld_loss_z']
     else:
-        pass
+        N = len(loss_history)
+
+    fig, axes = plt.subplots(N, 1, sharex=True)
+    for ax, name in zip(axes.flat, loss_history.keys()):
+        ax.plot(iteration, loss_history[name], color='blue')
+        ax.legend([name], loc='upper right')
+    plt.xlabel('# of iter')
+    plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
+
+    if save_path is not None:
+        plt.savefig(save_path)    
 
 # plot dimension-wise KLD losses
-def plot_KLD_losses(iteration, kld_losses_z, skip_N=100, plot_mean=True, plot_sum=True):
+def plot_KLD_losses(train_history, skip_N=100, plot_mean=True, plot_sum=True, save_path=None):
+    iteration, loss_history = train_history
+    if 'kld_loss_z' in loss_history:
+        kld_loss_z = loss_history['kld_loss_z']
+    else:
+        return
 
-    z_dim = len(kld_losses_z[0])
+    z_dim = len(kld_loss_z[0])
     kld_z_dict = {}
     for i in range(z_dim):
         kld_z_dict[str(i)] = []
-
-    for step in kld_losses_z:
+    for step in kld_loss_z:
         for value, idx in zip(step, range(z_dim)):
             kld_z_dict[str(idx)].append(value)
-
     labels = []
-    for i in range(len(kld_losses_z[0])):
+    for i in range(len(kld_loss_z[0])):
         labels.append('z_' + str(i))
     
     if plot_mean:
-        kld_losses_mean = []
+        kld_loss_mean = []
         labels.append('mean')
     if plot_sum:
-        kld_losses_sum = []
+        kld_loss_sum = []
         labels.append('total')
 
-    for value in kld_losses_z:
+    for value in kld_loss_z:
         if plot_mean:
-            kld_losses_mean.append(value.mean())
+            kld_loss_mean.append(value.mean())
         if plot_sum:
-            kld_losses_sum.append(value.sum())
+            kld_loss_sum.append(value.sum())
 
     fig, ax = plt.subplots(1,1)
-    smooth_weight = 0.6
+    smooth_N = 100
     for kld_z in kld_z_dict.values():
-        ax.plot(iteration[skip_N:], exp_smooth(kld_z[skip_N:], smooth_weight))
+        ax.plot(iteration[skip_N+smooth_N-1:], avg_smooth(kld_z[skip_N:], smooth_N), linewidth=1.0)
     if plot_mean:
-        ax.plot(iteration[skip_N:], exp_smooth(kld_losses_mean[skip_N:], smooth_weight), '--', color='k', alpha=0.8)
+        ax.plot(iteration[skip_N+smooth_N-1:], avg_smooth(kld_loss_mean[skip_N:], smooth_N), '--', color='k', linewidth=1.0, alpha=0.8)
     if plot_sum:
-        ax.plot(iteration[skip_N:], exp_smooth(kld_losses_sum[skip_N:], smooth_weight), '-', color='r', alpha=1.0)
+        ax.plot(iteration[skip_N+smooth_N-1:], avg_smooth(kld_loss_sum[skip_N:], smooth_N), '-', color='r', linewidth=1.0, alpha=0.8)
     plt.legend(labels) 
     plt.xlabel('# of iter')
     plt.title('KLD dimension-wise')
+
+    if save_path is not None:
+        plt.savefig(save_path)    
 
 def exp_smooth(data, weight=0.6):  # Weight between 0 and 1
     last = data[0]  # First value in the plot (first timestep)
@@ -226,4 +210,9 @@ def exp_smooth(data, weight=0.6):  # Weight between 0 and 1
         smoothed.append(smoothed_val)                        # Save it
         last = smoothed_val                                  # Anchor the last smoothed value
 
+    return smoothed
+
+def avg_smooth(data, N=10):  # N = number of points to be averaged
+    data_np = np.array(data)
+    smoothed = np.convolve(data_np, np.ones(N), 'valid') / N
     return smoothed

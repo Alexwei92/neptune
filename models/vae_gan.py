@@ -107,7 +107,7 @@ class VAEGAN(nn.Module):
         mu, logvar = self.encode(x)
         z = self.reparameterize(mu, logvar)
         x_recon = self.decode(z)
-        return x_recon, mu, logvar
+        return [x_recon, x, mu, logvar]
 
     def sample(self, n_samples, device=torch.device('cuda:0')):
         z = torch.randn(n_samples, self.z_dim).to(device)

@@ -6,6 +6,7 @@ import pandas
 import multiprocessing as mp
 from tqdm import tqdm 
 import pickle
+import math
 
 from feature_extract import *
 from sklearn.linear_model import LinearRegression, Ridge, BayesianRidge
@@ -72,6 +73,7 @@ class RegTrain_single():
         self.weight_filename = kwargs['weight_filename']
         self.model_filename = kwargs['model_filename']
         self.num_prvs = kwargs['num_prvs']
+        self.prvs_mode = kwargs['prvs_mode']
         self.image_size = kwargs['image_size']
         self.reg_type = kwargs['reg_type']
         self.preload = kwargs.get('preload', True)
@@ -160,19 +162,27 @@ class RegTrain_single():
         # Yaw cmd
         y = telemetry_data['yaw_cmd'][:N].to_numpy()
 
-        # Previous commands with time decaying
-        y_prvs = np.zeros((N, num_prvs))
-        # prvs_index = exponential_decay(num_prvs)
-        prvs_index = [i for i in reversed(range(1, num_prvs+1))]
-        for i in range(N):
-            for j in range(num_prvs):
-                y_prvs[i,j] = y[max(i-prvs_index[j], 0)]
-
         # Yaw rate
         yawRate = np.reshape(telemetry_data['yaw_rate'][:N].to_numpy(), (-1,1))
-        
-        # X_extra = [y_prvs, yawRate]
-        X_extra = np.concatenate((y_prvs, yawRate), axis=1)
+        yawRate_norm = yawRate * (180.0 / math.pi) / 45.0
+
+        # Previous commands with time decaying
+        if num_prvs > 0:
+            y_prvs = np.zeros((N, num_prvs))
+            if self.prvs_mode == 'exponential':
+                prvs_index = exponential_decay(num_prvs)
+            elif self.prvs_mode == 'linear':
+                prvs_index = [i for i in reversed(range(1, num_prvs+1))]
+            else:
+                raise Exception('Unknown prvs_mode {:s}'.format(self.prvs_mode))
+            for i in range(N):
+                for j in range(num_prvs):
+                    y_prvs[i,j] = y[max(i-prvs_index[j], 0)]
+
+            # X_extra = [y_prvs, yawRate]
+            X_extra = np.concatenate((y_prvs, yawRate_norm), axis=1)
+        else:
+            X_extra = yawRate_norm
         
         return X_extra, y, N
        
@@ -238,7 +248,6 @@ class RegTrain_multi(RegTrain_single):
         self.save_result(model, weight)
 
 
-
 class RegTrain_single_advanced():
     """
     Linear Regression Training Agent with Single Core
@@ -249,6 +258,7 @@ class RegTrain_single_advanced():
         self.weight_filename = kwargs['weight_filename']
         self.model_filename = kwargs['model_filename']
         self.num_prvs = kwargs['num_prvs']
+        self.prvs_mode = kwargs['prvs_mode']
         self.image_size = kwargs['image_size']
         self.reg_type = kwargs['reg_type']
         self.preload = kwargs.get('preload', True)
@@ -345,19 +355,27 @@ class RegTrain_single_advanced():
         # Yaw cmd
         y = telemetry_data['yaw_cmd'][:N].to_numpy()
 
-        # Previous commands with time decaying
-        y_prvs = np.zeros((N, num_prvs))
-        # prvs_index = exponential_decay(num_prvs)
-        prvs_index = [i for i in reversed(range(1, num_prvs+1))]
-        for i in range(N):
-            for j in range(num_prvs):
-                y_prvs[i,j] = y[max(i-prvs_index[j], 0)]
-
         # Yaw rate
         yawRate = np.reshape(telemetry_data['yaw_rate'][:N].to_numpy(), (-1,1))
-        
-        # X_extra = [y_prvs, yawRate]
-        X_extra = np.concatenate((y_prvs, yawRate), axis=1)
+        yawRate_norm = yawRate * (180.0 / math.pi) / 45.0
+
+        # Previous commands with time decaying
+        if num_prvs > 0:
+            y_prvs = np.zeros((N, num_prvs))
+            if self.prvs_mode == 'exponential':
+                prvs_index = exponential_decay(num_prvs)
+            elif self.prvs_mode == 'linear':
+                prvs_index = [i for i in reversed(range(1, num_prvs+1))]
+            else:
+                raise Exception('Unknown prvs_mode {:s}'.format(self.prvs_mode))
+            for i in range(N):
+                for j in range(num_prvs):
+                    y_prvs[i,j] = y[max(i-prvs_index[j], 0)]
+
+            # X_extra = [y_prvs, yawRate]
+            X_extra = np.concatenate((y_prvs, yawRate_norm), axis=1)
+        else:
+            X_extra = yawRate_norm
         
         return X_extra, y, N
        
@@ -373,6 +391,8 @@ class RegTrain_single_advanced():
         return result, weight
 
     def save_result(self, result, weight):
+        if not os.path.isdir(self.output_dir):
+            os.makedirs(self.output_dir)
         pickle.dump(result, open(os.path.join(self.output_dir, self.model_filename), 'wb'))
         print('Save model to: ', os.path.join(self.output_dir, self.model_filename))
 

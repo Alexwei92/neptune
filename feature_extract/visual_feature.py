@@ -274,7 +274,7 @@ class FeatureExtract():
         for i in self.H_points:
             for j in self.W_points:
                 # Currently just the average over the entire window
-                depth_result[index] = np.mean(np.abs(image[i:i+self.H_size, j:j+self.W_size])) / 255. # in range [0.0, 1.0]
+                depth_result[index] = np.mean(image[i:i+self.H_size, j:j+self.W_size]) / 255. # in range [0.0, 1.0]
                 index += 1
 
         return depth_result

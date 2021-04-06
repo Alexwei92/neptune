@@ -102,6 +102,40 @@ class Dronet(nn.Module):
 
         return mu, logvar
 
+class Encoder(nn.Module):
+    """
+    VAE Encoder
+    """
+    def __init(self, n_out, in_channels=3):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels, 32, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.Conv2d(32, 32, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+        )
+        self.reshape = (-1, 256)
+        self.linear0 = nn.Linear(256, n_out)
+        self.linear1 = nn.Linear(256, n_out)
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = torch.flatten(x)
+        x = x.view(self.reshape)
+        # x = F.dropout(x, p=0.5)
+        mu = self.linear0(x) # mean
+        logvar = self.linear1(x) # log(variance)
+        
+        return mu, logvar
+
 class Decoder(nn.Module):
     """
     VAE Decoder
@@ -190,16 +224,25 @@ class VanillaVAE(nn.Module):
         mu, logvar = self.encode(x)
         z = self.reparameterize(mu, logvar)
         x_recon = self.decode(z)
-        return x_recon, mu, logvar
+        return [x_recon, x, mu, logvar]
 
-    def loss_function(self, x_recon, x, mu, logvar, **kwargs):
+    def loss_function(self, *args, **kwargs):
+        x_recon = args[0]
+        x = args[1]
+        mu = args[2]
+        logvar = args[3]
+        
         batch_size = x_recon.size(0)
-        mse = F.mse_loss(x_recon, x, reduction='sum').div(batch_size)
+        mse = F.mse_loss(x_recon, x, reduction='sum').div(batch_size)        
         kld = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())
         kld_z = kld.mean(0)
         kld = kld.sum(1).mean(0)
-        loss = mse + kld
-        return {'loss': loss, 'MSE': mse, 'KLD': kld, 'KLD_z': kld_z}
+        total_loss = mse + kld
+        return {'total_loss': total_loss,
+                'mse_loss': mse,
+                'kld_loss': kld,
+                'kld_loss_z': kld_z
+            }
 
     def sample(self, n_samples, device=torch.device('cuda:0')):
         z = torch.randn(n_samples, self.z_dim).to(device)

@@ -53,16 +53,16 @@ if __name__ == '__main__':
     
     # Subject list
     subject_list = [
-        'subject1',
-        'subject2',
-        'subject3',
-        'subject4',
-        'subject5',
-        'subject6',
+        # 'subject1',
+        # 'subject2',
+        # 'subject3',
+        # 'subject4',
+        # 'subject5',
+        # 'subject6',
         'subject7',
-        'subject8',
-        'subject9',
-        'subject10',
+        # 'subject8',
+        # 'subject9',
+        # 'subject10',
     ]
     # Map list
     map_list = [
@@ -73,8 +73,8 @@ if __name__ == '__main__':
         'map5',
         'map7',
         'map8',
-        'map9',
-        'o1',
+        # 'map9',
+        # 'o1',
         'o2',
     ]
 
@@ -82,7 +82,6 @@ if __name__ == '__main__':
     iteration = 'iter0'
 
     # Init the plot
-    # fig, axes = plt.subplots(2, 5, sharex=True, sharey=True)
     fig, axes = plt.subplots(2, 5, sharex=False, sharey=False)
 
     # Start the loop

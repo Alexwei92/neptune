@@ -11,11 +11,8 @@ from utils import plot_with_cmd
 from feature_extract import *
 
 if __name__ == '__main__':
-    folder_path = 'E:/my_datasets/subject5/map8/iter0/2021_Feb_22_15_47_20'
-    # folder_path = 'E:/my_datasets/subject3/map8/iter0/2021_Feb_21_13_15_09'
-    # folder_path = 'E:/my_datasets/subject6/map8/iter0/2021_Feb_23_10_05_19'
+    folder_path = '/media/lab/Hard Disk/my_datasets/subject5/map2/iter0/2021_Feb_22_15_15_27'
     
-
     # telemetry feature
     telemetry_data = pandas.read_csv(os.path.join(folder_path, 'airsim.csv'))
     timestamp = telemetry_data['timestamp'][:-1].to_numpy(float)
@@ -43,6 +40,7 @@ if __name__ == '__main__':
 
         # plot
         plot_with_cmd('disp', image, yaw_cmd[i], True)
+
         plt.pause(1e-5)
 
         elapsed_time = time.perf_counter() - tic

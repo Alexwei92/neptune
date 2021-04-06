@@ -1,23 +1,32 @@
 model_params:
   name:                   'VAEGAN'
   in_channels:            3
-  z_dim:                  10
+  z_dim:                  30
   input_dim:              64  
 
 train_params:
   batch_size:             128
-  n_epochs:               600
-  netE_learning_rate:     0.0005
-  netG_learning_rate:     0.0005
-  netD_learning_rate:     0.0001
-  weight_decay:           0.0
-  manual_seed:            11
+  n_epochs:               50
+  optimizerE:             # Encoder
+    type:                 'Adam'
+    learning_rate:        0.0002
+    betas:                (0.9, 0.999)
+    weight_decay:         0.0
+  optimizerG:             # Generater
+    type:                 'Adam'
+    learning_rate:        0.0002
+    betas:                (0.9, 0.999)
+    weight_decay:         0.0
+  optimizerD:             # Discriminator
+    type:                 'Adam'
+    learning_rate:        0.0002
+    betas:                (0.9, 0.999)
+    weight_decay:         0.0
+  manual_seed:            1234
 
 log_params:
   name:                   'vae_gan'
-  model_filename:         'vaegan_model'
-  checkpoint_filename:    'vaegan_checkpoint'
-  log_interval:           5
+  log_interval:           1
   checkpoint_preload:     False
   generate_samples:       True
   use_tensorboard:        True

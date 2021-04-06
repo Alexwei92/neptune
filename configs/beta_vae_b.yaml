@@ -1,8 +1,12 @@
 model_params:
-  name:                   'VanillaVAE'
+  name:                   'BetaVAE'
   in_channels:            3
   z_dim:                  30
   input_dim:              64
+  # loss_type == 'B' (https://arxiv.org/pdf/1804.03599.pdf)
+  gamma:                  20.0
+  C_max:                  13
+  C_stop_iter:            80000
 
 train_params:
   batch_size:             128
@@ -15,8 +19,8 @@ train_params:
   manual_seed:            1234
 
 log_params:
-  name:                   'vanilla_vae'
-  log_interval:           5
-  checkpoint_preload:     True
+  name:                   'beta_vae_b'
+  log_interval:           10
+  checkpoint_preload:     False
   generate_samples:       True
   use_tensorboard:        True

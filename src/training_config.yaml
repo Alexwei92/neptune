@@ -2,9 +2,9 @@
 global_params:
   folder_path:                '/media/lab/Hard Disk' # leave it '' if you read/write data in the current folder, 
                                                      # otherwise specify the path (e.g., on hard disk)
-  dataset_dir:                'my_datasets/test' # source datasets path
-  output_dir:                 'my_outputs/test2' # save output to this path
-  result_only:                True  # this will diable all the trainings and only display the existing results
+  dataset_dir:                'my_datasets/' # source datasets path
+  output_dir:                 'my_outputs/VAE2' # save output to this path
+  result_only:                False  # this will diable all the trainings and only display the existing results
 
 ## Train parameters
 train_params:  
@@ -14,40 +14,37 @@ train_params:
   train_reg:                  False # enable train linear regression weights
   preload_sample:             True # preload samples from file
   reg_num_prvs:               5 # number of previous cmd to use
+  reg_prvs_mode:              'exponential' # {'exponential', 'linear'} 
   reg_type:                   'Ridge' # {'Ridge', 'LinearRegression', 'BayesianRidge'}
   reg_weight_filename:        'reg_weight.csv' # regression weight filename
   reg_model_filename:         'reg_model.pkl' # regression trained model filename
   use_multicore:              True # this will use multiple cpu cores to train the model
   
   train_vae:                  True # enable train VAE model
-  model_type:                 'dc_gan' # {'vanilla_vae', 'beta_vae', 'vae_gan'} model type
+  model_type:                 'vae_gan' # {'vanilla_vae', 'beta_vae_h', 'beta_vae_b', 'factor_vae', 'vae_gan', 'dc_gan'} model type
   img_resize:                 (64, 64) # resize image before VAE, right now only support (64, 64)
-  
+
   train_latent:               False  # enable train latent controller network model
-  # latent_n_epochs:            200 # number of epochs
-  # latent_batch_size:          32 # batch size
-  # latent_checkpoint_filename: 'latent_checkpoint_z_15.pt' # latent controller checkpoint file name
-  # latent_checkpoint_preload:  True # preload a latent controller checkpoint
-  # latent_model_filename:      'latent_model_z_15.pt' # save latent controller model to this file name
-  # latent_num_prvs:            5 # number of previous cmd to use
-  # latent_learning_rate:       0.001 # learning rate
+  vae_model_type:             'beta_vae' # VAE model type
+  vae_model_path:             'my_outputs/VAE/beta_vae_B/beta_vae_model_z_15.pt' # VAE model file path
+  latent_model_type:          'latent_nn_simple' # {'latent_nn_simple', 'latent_nn_complex'} model type
 
 # Dataset parameters
 dataset_params:
   test_size:                  0.1 # in percentage, used in train_test_split
   manual_seed:                11 # random state
-  dataloader_type:            'simple' # {'simple', 'advanced'}
+  dataloader_type:            'advanced' # {'simple', 'advanced'}
   subject_list:               [ # subject list
-                              'subject1',
-                              'subject2',
-                              'subject3',
+                              # 'subject1',
+                              # 'subject2',
+                              # 'subject3',
                               'subject4',
-                              'subject5',
-                              'subject6',
-                              'subject7',
-                              'subject8',
-                              'subject9',
-                              'subject10',
+                              # 'subject5',
+                              # 'subject6',
+                              # 'subject7',
+                              # 'subject8',
+                              # 'subject9',
+                              # 'subject10',
                             ]
   map_list:                   [ # map list
                               'map1',
@@ -61,3 +58,4 @@ dataset_params:
                               # 'o1',
                               'o2',
                             ]
+  iteration:                  0 # iteration number in DAgger

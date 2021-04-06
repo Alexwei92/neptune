@@ -168,8 +168,8 @@ class FastLoop():
                 self.is_expert = is_expert
                 if is_expert:
                     print_msg('Switch to manual control')
-                    if self.flight_mode is 'mission' and self.dagger_type is 'hg':
-                        self.virtual_crash = True # when the pilot think it may crash (HG-dagger)
+                    # if self.flight_mode is 'mission' and self.dagger_type is 'hg':
+                    #     self.virtual_crash = True # when the pilot think it may crash (HG-dagger)
                 else:
                     print_msg('Switch to agent control')
             
@@ -291,6 +291,12 @@ class Logger():
         self.filewriter.writerow(['timestamp','pos_x','pos_y','pos_z','yaw','yaw_rate','yaw_cmd','flag'])
         self.flag = 0
         self.index = 0
+
+    def update_flag(self, is_expert):
+        if is_expert:
+            self.flag = 0
+        else:
+            self.flag = 1
 
     def save_image(self, folder, image):
         cv2.imwrite(os.path.join(self.folder_path + '/' + folder, "%07i.png" % self.index), image)

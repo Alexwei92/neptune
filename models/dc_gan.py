@@ -36,7 +36,6 @@ class Generator(nn.Module):
         output = self.main(input)
         return output
 
-
 class Discriminator(nn.Module):
     """
     Discriminator
@@ -97,7 +96,7 @@ class DCGAN(nn.Module):
         pass
 
     def sample(self, n_samples, device=torch.device('cuda:0')):
-        z = torch.randn(n_samples, self.z_dim).to(device)
+        z = torch.randn(n_samples, self.z_dim, 1, 1).to(device)
         samples = self.generate(z)
         return samples
 

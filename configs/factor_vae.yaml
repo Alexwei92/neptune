@@ -1,27 +1,29 @@
 model_params:
-  name:                   'DCGAN'
+  name:                   'FactorVAE'
   in_channels:            3
-  z_dim:                  64  
-  input_dim:              64  
+  z_dim:                  15
+  input_dim:              64
+  # (https://arxiv.org/pdf/1802.05983.pdf)
+  gamma:                  30
 
 train_params:
   batch_size:             128
-  n_epochs:               300
-  optimizerG:             # Generater
+  n_epochs:               50
+  optimizer:  
     type:                 'Adam'
     learning_rate:        0.0001
     betas:                (0.9, 0.999)
     weight_decay:         0.0
-  optimizerD:             # Discriminator
+  optimizerD:
     type:                 'Adam'
-    learning_rate:        0.0003
+    learning_rate:        0.0004
     betas:                (0.9, 0.999)
     weight_decay:         0.0
   manual_seed:            1234
 
 log_params:
-  name:                   'dc_gan'
+  name:                   'factor_vae'
   log_interval:           5
-  checkpoint_preload:     False
+  checkpoint_preload:     True
   generate_samples:       True
   use_tensorboard:        True

@@ -11,13 +11,7 @@ from utils import plot_with_cmd_compare
 from feature_extract import *
 from imitation_learning import exponential_decay
 
-if __name__ == '__main__':
-    folder_path = '/media/lab/Hard Disk/my_datasets/subject4/map5/iter0/2021_Feb_21_15_25_53'
-    weight_path = '/media/lab/Hard Disk/my_outputs/subject4/reg_weight.csv'
-
-    # load weight
-    weight = np.genfromtxt(weight_path, delimiter=',')
-
+def read_data(folder_path, num_prvs=5):
     # visual feature
     feature_path = os.path.join(folder_path, 'feature_preload.pkl')
     X = pandas.read_pickle(feature_path).to_numpy()
@@ -31,25 +25,40 @@ if __name__ == '__main__':
     # yaw cmd
     yaw_cmd = telemetry_data['yaw_cmd'][:-1].to_numpy()
 
-    # previous commands with time decaying
-    num_prvs = 5
-    y_prvs = np.zeros((len(yaw_cmd), num_prvs))
-    # prvs_index = exponential_decay(num_prvs)
-    prvs_index = [i for i in reversed(range(1, num_prvs+1))]
-    for i in range(len(yaw_cmd)):
-        for j in range(num_prvs):
-            y_prvs[i,j] = yaw_cmd[max(i-prvs_index[j], 0)]
-
     # yaw rate
     yawRate = np.reshape(telemetry_data['yaw_rate'][:-1].to_numpy(), (-1,1))
+
+    # previous commands with time decaying
+    if num_prvs > 0:
+        y_prvs = np.zeros((len(yaw_cmd), num_prvs))
+        prvs_index = exponential_decay(num_prvs)
+        # prvs_index = [i for i in reversed(range(1, num_prvs+1))]
+        for i in range(len(yaw_cmd)):
+            for j in range(num_prvs):
+                y_prvs[i,j] = yaw_cmd[max(i-prvs_index[j], 0)]
+        X_extra = np.concatenate((y_prvs, yawRate), axis=1)
+    else:
+        X_extra = yawRate
     
     # total feature
-    X_extra = np.concatenate((y_prvs, yawRate), axis=1)
     X = np.column_stack((X, X_extra))
 
-    # display
+    # image
     file_list_color = glob.glob(os.path.join(folder_path, 'color', '*.png'))
     file_list_color.sort()
+
+    return timestamp, yaw_cmd, X, file_list_color
+
+if __name__ == '__main__':
+    folder_path = '/media/lab/Hard Disk/my_datasets/subject1/map1/iter0/2021_Feb_21_09_22_37'
+    weight_path = '/media/lab/Hard Disk/my_outputs/subject1/iter0/reg/reg_weight.csv'
+
+    # load weightq
+    weight = np.genfromtxt(weight_path, delimiter=',')
+
+    # read data
+    num_prvs = 5
+    timestamp, yaw_cmd, X, file_list_color = read_data(folder_path, num_prvs)
 
     # dict
     feature_agent = FeatureExtract(feature_config, (480,640))
@@ -62,7 +71,6 @@ if __name__ == '__main__':
         time_dict[name] = (total_size + size * len(feature_agent.H_points) * len(feature_agent.W_points))
         total_size += size * len(feature_agent.H_points) * len(feature_agent.W_points)
 
-
     # plot
     fig_bar, ax_bar = plt.subplots()
     effect_percent = np.zeros((len(time_dict)+3,))
@@ -72,6 +80,7 @@ if __name__ == '__main__':
     bar_handle = ax_bar.bar(bar_name, effect_percent, width=0.8, color=['b','g','r','c','m','y','k',(0.5,0.5,0.5)])
     ax_bar.set_ylim((-0.5,0.5))
 
+    # Start the loop
     i = 0
     tic = time.perf_counter()
     for color_file in file_list_color:
@@ -89,7 +98,10 @@ if __name__ == '__main__':
             all_size = size * len(feature_agent.H_points) * len(feature_agent.W_points)
             effect[name] = np.dot(weight[index-all_size+1:index+1], X[i, index-all_size:index])
 
-        effect['cmd_prvs'] = np.dot(weight[total_size+1:total_size+5+1], X[i, total_size:total_size+5])
+        if num_prvs > 0:
+            effect['cmd_prvs'] = np.dot(weight[total_size+1:total_size+5+1], X[i, total_size:total_size+5])
+        else:
+             effect['cmd_prvs'] = 0
         effect['yawRate'] = np.dot(weight[total_size+5+1:total_size+6+1], X[i, total_size+5:total_size+6])
 
         k = 0
@@ -104,8 +116,6 @@ if __name__ == '__main__':
         
         # plot
         plot_with_cmd_compare('reg', image, yaw_cmd[i], y_pred)
-        # ax_bar.relim()
-        # ax_bar.autoscale_view()
         plt.pause(1e-5)
 
         elapsed_time = time.perf_counter() - tic

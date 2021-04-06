@@ -10,7 +10,9 @@ from utils import *
 from models import *
 from imitation_learning import *
 
-# torch.backends.cudnn.deterministic = True
+# torch.backends.cudnn.enabled = True
+# torch.backends.cudnn.benchmark = True
+torch.backends.cudnn.deterministic = True
 # torch.autograd.set_detect_anomaly(True)
 
 def imshow_np(axis, img):
@@ -54,6 +56,7 @@ if __name__ == '__main__':
     # Dataloader
     img_resize = eval(config['train_params']['img_resize'])
     dataloader_type = config['dataset_params']['dataloader_type']
+    iteration = config['dataset_params']['iteration']
     if dataloader_type == 'advanced':
         subject_list = config['dataset_params']['subject_list']
         map_list = config['dataset_params']['map_list']
@@ -63,11 +66,9 @@ if __name__ == '__main__':
         transforms.Normalize((127.5, 127.5, 127.5), (127.5, 127.5, 127.5)), # from [0,255] to [-1,1]
     ])    
 
-
     # If only displays the result
     result_only = config['global_params']['result_only']
     if result_only:
-        # Only display results, no training
 
         # print('\n***** Regression Results *****')
         # reg_model_filename = config['train_params']['reg_model_filename']
@@ -87,19 +88,8 @@ if __name__ == '__main__':
             model_config = yaml.safe_load(file)
             file.close()
         except Exception as error:
-            print_msg(str(error), type=3)
+            print(str(error), type=3)
             exit()
-
-        if dataloader_type == 'simple':
-            all_data = ImageDataset_simple(dataset_dir, resize=img_resize, transform=transform_composed)
-        elif dataloader_type == 'advanced':
-            all_data = ImageDataset_advanced(dataset_dir, subject_list, map_list, iter=0, resize=img_resize, transform=transform_composed)
-        else:
-            raise Exception("Unknown dataloader_type {:s}".format(dataloader_type))
-        
-        _, test_data = train_test_split(all_data,
-                                    test_size=config['dataset_params']['test_size'],
-                                    random_state=config['dataset_params']['manual_seed'])
 
         print('Model Type: {:s}'.format(model_type))
         if model_type in vae_model:
@@ -111,46 +101,6 @@ if __name__ == '__main__':
                                 train_params=model_config['train_params'],
                                 log_params=model_config['log_params'])
 
-            # plot_train_losses(test_agent.get_train_history())
-            # plot_KLD_losses(test_agent.iteration, test_agent.kld_losses_z, plot_sum=False)
-            print('Epoch = {:d}'.format(test_agent.get_current_epoch()))
-
-
-            # Perturbation
-            vars = np.linspace(-3.0, 3.0, num=10)
-            img_all = torch.empty((1,3,64,64),requires_grad=False).to(device)
-
-            test_agent.model.eval()
-            with torch.no_grad(): 
-                img = test_data[50]
-                z_raw_gpu = test_agent.model.get_latent(img.unsqueeze(0).to(device))
-                z_raw_cpu = z_raw_gpu.cpu().numpy()
-                for i in range(test_agent.z_dim):
-                    z_new_cpu = z_raw_cpu.copy()
-                    for value in vars:
-                        z_new_cpu[0, i] = value
-                        z_new_gpu = torch.from_numpy(z_new_cpu.astype(np.float32)).unsqueeze(0).to(device)
-                        img_new_gpu = test_agent.model.decode(z_new_gpu)
-                        img_all = torch.cat((img_all, img_new_gpu), axis=0)
-                        image_pred = img_new_gpu.cpu().squeeze(0)
-
-            vutils.save_image(img_all[1:,...].cpu(),
-                        os.path.join(output_dir, model_type + '_traveler.png'),
-                        nrow=len(vars),
-                        normalize=True,
-                        range=(-1,1))
-            img_grid = vutils.make_grid(img_all[1:,...].cpu(), nrow=len(vars), normalize=True, range=(-1,1))
-            plt.imshow(img_grid.permute(1,2,0))
-            plt.axis('off')
-            plt.show()
-
-            # print(test_data[50])
-            # test_agent.test(test_data)
-            # with torch.no_grad(): 
-            #     _, example_data = next(enumerate(test_loader)) 
-            #     generated_data, _, _ = test_agent.VAE_model(example_data.to(device))
-            #     plot_generate_figure(example_data, generated_data.cpu())
-        
         elif model_type in vaegan_model:
             model = vaegan_model[model_type](**model_config['model_params'])
             model_config['log_params']['output_dir'] = output_dir
@@ -159,52 +109,6 @@ if __name__ == '__main__':
                                 is_eval=True,
                                 train_params=model_config['train_params'],
                                 log_params=model_config['log_params'])
-
-
-            plot_KLD_losses(test_agent.iteration, test_agent.kld_losses_dim_wise, plot_sum=False)
-            print('Epoch = {:d}'.format(test_agent.get_current_epoch()))
-
-            # # Perturbation
-            # vars = np.linspace(-3.0, 3.0, num=10)
-            # img_all = torch.empty((1,3,64,64),requires_grad=False).to(device)
-
-            # test_agent.model.eval()
-            # with torch.no_grad(): 
-            #     img = test_data[50]
-            #     z_raw_gpu = test_agent.model.get_latent(img.unsqueeze(0).to(device))
-            #     z_raw_cpu = z_raw_gpu.cpu().numpy()
-            #     for i in range(test_agent.z_dim):
-            #         z_new_cpu = z_raw_cpu.copy()
-            #         for value in vars:
-            #             z_new_cpu[0, i] = value
-            #             z_new_gpu = torch.from_numpy(z_new_cpu.astype(np.float32)).unsqueeze(0).to(device)
-            #             img_new_gpu = test_agent.model.decode(z_new_gpu)
-            #             img_all = torch.cat((img_all, img_new_gpu), axis=0)
-            #             image_pred = img_new_gpu.cpu().squeeze(0)
-
-            # vutils.save_image(img_all[1:,...].cpu(),
-            #             os.path.join(output_dir, model_type + '_traveler.png'),
-            #             nrow=len(vars),
-            #             normalize=True,
-            #             range=(-1,1))
-            # img_grid = vutils.make_grid(img_all[1:,...].cpu(), nrow=len(vars), normalize=True, range=(-1,1))
-            # plt.imshow(img_grid.permute(1,2,0))
-            # plt.axis('off')
-            # plt.show()
-
-            # fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True)
-            # ax1.plot(test_agent.iteration, test_agent.netE_losses, color='blue')
-            # ax1.legend(['Encoder Loss'], loc='upper right')
-            # ax2.plot(test_agent.iteration, test_agent.netG_losses, color='blue')
-            # ax2.legend(['Generator Loss'], loc='upper right')
-            # # ax2.set_ylabel('Loss')
-            # ax3.plot(test_agent.iteration, test_agent.netD_losses, color='blue')
-            # ax3.legend(['Discriminator Loss'], loc='upper right')
-            # ax4.plot(test_agent.iteration, test_agent.kld_losses, color='blue')
-            # ax4.legend(['KLD Loss'], loc='upper right')        
-            # ax4.xaxis.set_major_locator(MaxNLocator(integer=True))
-            # plt.xlabel('# of iter')
-            # plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
 
         elif model_type in gan_model:
             model = gan_model[model_type](**model_config['model_params'])
@@ -215,12 +119,45 @@ if __name__ == '__main__':
                                 train_params=model_config['train_params'],
                                 log_params=model_config['log_params'])
 
-            plot_train_losses(test_agent.get_train_history())
-            print('Epoch = {:d}'.format(test_agent.get_current_epoch()))
-
         else:
             raise Exception("Unknown model_type {:s}".format(model_type))
 
+        # training loss
+        plot_train_losses(test_agent.get_train_history(), save_path=os.path.join(output_dir, model_type, 'train_loss.png'))
+        print('Epoch = {:d}'.format(test_agent.get_current_epoch()))
+        
+        if model_type not in gan_model:
+            # KLD loss
+            plot_KLD_losses(test_agent.get_train_history(), plot_sum=False, plot_mean=True,
+                        save_path=os.path.join(output_dir, model_type, 'kld_loss_z.png'))
+        
+            # latent traversal
+            if dataloader_type == 'simple':
+                all_data = ImageDataset_simple(dataset_dir, resize=img_resize, transform=transform_composed)
+            elif dataloader_type == 'advanced':
+                all_data = ImageDataset_advanced(dataset_dir, subject_list, map_list, iter=0, resize=img_resize, transform=transform_composed)
+            else:
+                raise Exception("Unknown dataloader_type {:s}".format(dataloader_type))
+            
+            _, test_data = train_test_split(all_data,
+                                        test_size=config['dataset_params']['test_size'],
+                                        random_state=config['dataset_params']['manual_seed'])
+            
+            traversal = np.linspace(-3.0, 3.0, num=10)
+            img_all = test_agent.latent_traversal(test_data[50], traversal)
+            vutils.save_image(img_all[1:,...].cpu(),
+                        os.path.join(output_dir, model_type, 'latent_traversal.png'),
+                        nrow=len(traversal),
+                        normalize=True,
+                        range=(-1,1))
+            img_grid = vutils.make_grid(img_all[1:,...].cpu(),
+                        nrow=len(traversal),
+                        normalize=True,
+                        range=(-1,1))
+            
+            plt.figure()
+            plt.imshow(img_grid.permute(1,2,0))
+            plt.axis('off')
 
 
         # print('\n***** NN Controller Results *****')
@@ -234,42 +171,50 @@ if __name__ == '__main__':
         plt.show()
         exit()
 
-    # # 1) Linear Regression
-    # if config['train_params']['train_reg'] :
-    #     print('======= Linear Regression Controller =========')
-    #     image_size = eval(config['train_params']['image_size'])
-    #     preload_sample = config['train_params']['preload_sample']
-    #     reg_num_prvs = config['train_params']['reg_num_prvs']
-    #     reg_type = config['train_params']['reg_type']
-    #     reg_weight_filename = config['train_params']['reg_weight_filename']
-    #     reg_model_filename = config['train_params']['reg_model_filename']
-    #     use_multicore = config['train_params']['use_multicore']
+    # 1) Linear Regression
+    if config['train_params']['train_reg'] :
+        print('======= Linear Regression Controller =========')
+        image_size = eval(config['train_params']['image_size'])
+        preload_sample = config['train_params']['preload_sample']
+        reg_num_prvs = config['train_params']['reg_num_prvs']
+        reg_prvs_mode = config['train_params']['reg_prvs_mode']
+        reg_type = config['train_params']['reg_type']
+        reg_weight_filename = config['train_params']['reg_weight_filename']
+        reg_model_filename = config['train_params']['reg_model_filename']
+        use_multicore = config['train_params']['use_multicore']
 
-    #     reg_kwargs = {
-    #         'dataset_dir': dataset_dir,
-    #         'output_dir': output_dir,
-    #         'image_size': image_size,
-    #         'num_prvs': reg_num_prvs,
-    #         'reg_type': reg_type,
-    #         'weight_filename': reg_weight_filename,
-    #         'model_filename': reg_model_filename,
-    #         'preload': preload_sample,
-    #         'printout': False,
-    #         'subject_list': subject_list,
-    #         'map_list': map_list,
-    #         'iteration': 0,
-    #     }
+        reg_kwargs = {
+            'dataset_dir': dataset_dir,
+            'output_dir': output_dir,
+            'image_size': image_size,
+            'num_prvs': reg_num_prvs,
+            'prvs_mode': reg_prvs_mode,
+            'reg_type': reg_type,
+            'weight_filename': reg_weight_filename,
+            'model_filename': reg_model_filename,
+            'preload': preload_sample,
+            'printout': False,
+        }
 
-    #     # if use_multicore: 
-    #     #     # Multi-processing training
-    #     #     proc = mp.Process(target=RegTrain_multi, kwargs=reg_kwargs)
-    #     #     proc.start()
-    #     #     proc.join()
-    #     # else:
-    #     #     # Single-processing training
-    #     #     RegTrain_single(**reg_kwargs)
+        if dataloader_type == 'advanced':
+            for subject in subject_list:
+                reg_kwargs.update({
+                    'output_dir': os.path.join(output_dir, subject, 'iter'+str(iteration), 'reg'),
+                    'subject_list': [subject],
+                    'map_list': map_list,
+                    'iteration': iteration,
+                    })
+                RegTrain_single_advanced(**reg_kwargs)
 
-    #     RegTrain_single_advanced(**reg_kwargs)
+        elif dataloader_type == 'simple':
+            if use_multicore: 
+                # Multi-processing training
+                proc = mp.Process(target=RegTrain_multi, kwargs=reg_kwargs)
+                proc.start()
+                proc.join()
+            else:
+                # Single-processing training
+                RegTrain_single(**reg_kwargs)
 
     # 2) VAE
     if config['train_params']['train_vae']:
@@ -299,6 +244,11 @@ if __name__ == '__main__':
             print_msg(str(error), type=3)
             exit()
 
+        # Random seed
+        torch.manual_seed(model_config['train_params']['manual_seed'])
+        torch.cuda.manual_seed(model_config['train_params']['manual_seed'])
+        np.random.seed(model_config['train_params']['manual_seed'])
+
         # Create the agent
         if model_type in vae_model:
             model = vae_model[model_type](**model_config['model_params'])
@@ -317,7 +267,7 @@ if __name__ == '__main__':
                                 is_eval=False,
                                 train_params=model_config['train_params'],
                                 log_params=model_config['log_params'])
-        
+
         elif model_type in gan_model:
             model = gan_model[model_type](**model_config['model_params'])
             model_config['log_params']['output_dir'] = output_dir
@@ -331,45 +281,88 @@ if __name__ == '__main__':
             raise Exception("Unknown model_type {:s}".format(model_type))     
 
         
-
         # Training loop
         print('\n*** Start training ***')
         train_agent.load_dataset(train_data, test_data)
         train_agent.train()
         print('Trained ' + model_type + ' model successfully.')
 
-    # # # 3) Controller Network
-    # # if config['train_params']['train_latent']:
-    # #     print('============= Latent Controller ==============')
-    # #     batch_size = config['train_params']['latent_batch_size']
-    # #     n_epochs = config['train_params']['latent_n_epochs']
-    # #     z_dim = config['train_params']['z_dim']
-    # #     img_resize = eval(config['train_params']['img_resize'])
-    # #     latent_checkpoint_filename = config['train_params']['latent_checkpoint_filename']
-    # #     latent_checkpoint_preload = config['train_params']['latent_checkpoint_preload']
-    # #     latent_model_filename = config['train_params']['latent_model_filename']
-    # #     latent_num_prvs = config['train_params']['latent_num_prvs']
-    # #     latent_learning_rate = config['train_params']['latent_learning_rate']
-    # #     vae_model_filename = config['train_params']['vae_model_filename']
+    # 3) Controller Network
+    if config['train_params']['train_latent']:
+        print('============= Latent Controller ==============')
+        img_resize = eval(config['train_params']['img_resize'])
+        vae_model_type = config['train_params']['vae_model_type']
+        vae_model_path = os.path.join(folder_path, config['train_params']['vae_model_path'])
+        latent_model_type = os.path.join(folder_path, config['train_params']['latent_model_type'])
+
+        # Latent model config
+        try:
+            file = open(os.path.join(setup_path.parent_dir, 'configs', 'latent_nn.yaml'), 'r')
+            latent_model_config = yaml.safe_load(file)
+            file.close()
+        except Exception as error:
+            print_msg(str(error), type=3)
+            exit()
         
-    # #     # DataLoader
-    # #     print('Loading latent datasets...')
-    # #     data = LatentDataset(dataset_dir, num_prvs=latent_num_prvs, resize=img_resize, preload=False)
-    # #     data_loader = DataLoader(data, batch_size=batch_size, shuffle=True, num_workers=6)
-    # #     print('Load latent datasets successfully.')
+        num_prvs = latent_model_config['model_params']['num_prvs']
+        prvs_mode = latent_model_config['model_params']['prvs_mode']
+        torch.manual_seed(latent_model_config['train_params']['manual_seed'])
+        torch.cuda.manual_seed(latent_model_config['train_params']['manual_seed'])
+        np.random.seed(latent_model_config['train_params']['manual_seed'])
 
-    # #     # Create agent
-    # #     latent_agent = LatentTrain(MyLatent(z_dim+latent_num_prvs+1), MyVAE(z_dim), latent_learning_rate)
-    # #     latent_agent.load_VAEmodel(os.path.join(output_dir, vae_model_filename))
-    # #     if latent_checkpoint_preload:
-    # #         latent_agent.load_checkpoint(os.path.join(output_dir, latent_checkpoint_filename))
+        # VAE model config
+        try:
+            file = open(os.path.join(setup_path.parent_dir, 'configs', vae_model_type + '.yaml'), 'r')
+            vae_model_config = yaml.safe_load(file)
+            file.close()
+        except Exception as error:
+            print_msg(str(error), type=3)
+            exit()
+        
+        # DataLoader
+        if dataloader_type == 'simple':
+            latent_model_config['log_params']['output_dir'] = output_dir
 
-    # #     # Training loop
-    # #     for epoch in range(1, n_epochs + 1):
-    # #         latent_agent.train(epoch, data_loader)
-    # #         # latent_agent.test(test_loader)
+            all_data = LatentDataset_simple(dataset_dir,
+                                    num_prvs=num_prvs,
+                                    prvs_mode=prvs_mode,
+                                    resize=img_resize,
+                                    transform=transform_composed)
+            train_data, test_data = train_test_split(all_data,
+                                                test_size=config['dataset_params']['test_size'],
+                                                random_state=config['dataset_params']['manual_seed'])     
+            print('Load latent datasets successfully.')         
 
-    # #         if epoch % 10 == 0 and epoch > 0:
-    # #             latent_agent.save_checkpoint(epoch, os.path.join(output_dir, latent_checkpoint_filename))
-    # #             latent_agent.save_model(os.path.join(output_dir, latent_model_filename))
-    # #     print('Trained Latent model successfully.')   
+        elif dataloader_type == 'advanced':
+            latent_model_config['log_params']['output_dir'] = os.path.join(output_dir, subject, 'iter'+str(iteration))
+
+            for subject in subject_list:
+                all_data = LatentDataset_advanced(dataset_dir,
+                                    subject_list=[subject],
+                                    map_list=map_list,
+                                    iter=iteration,
+                                    num_prvs=num_prvs,
+                                    prvs_mode=prvs_mode,
+                                    resize=img_resize,
+                                    transform=transform_composed)
+
+                train_data, test_data = train_test_split(all_data,
+                                                    test_size=config['dataset_params']['test_size'],
+                                                    random_state=config['dataset_params']['manual_seed'])     
+                print('Load latent datasets successfully.')
+                
+        # Create the agent
+        latent_model = latent_model[latent_model_type](**latent_model_config['model_params'])
+        vae_model = vae_model[vae_model_type](**vae_model_config['model_params'])
+        train_agent = LatentTrain(latent_model,
+                            vae_model,
+                            vae_model_path,
+                            device,
+                            is_eval=False,
+                            train_params=latent_model_config['train_params'],
+                            log_params=latent_model_config['log_params'])
+            
+        print('\n*** Start training ***')
+        train_agent.load_dataset(train_data, test_data)
+        train_agent.train()
+        print('Trained Latent model successfully.')   
