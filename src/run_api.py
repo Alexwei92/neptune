@@ -157,7 +157,9 @@ if __name__ == '__main__':
                     data_logger.save_image('color', fast_loop.image_color)
                     data_logger.save_image('depth', fast_loop.image_depth)
                     data_logger.update_flag(fast_loop.is_expert)
-                    data_logger.save_csv(fast_loop.drone_state.timestamp, fast_loop.drone_state.kinematics_estimated, fast_loop.pilot_cmd)
+                    data_logger.save_csv(fast_loop.drone_state.timestamp,
+                                        fast_loop.drone_state.kinematics_estimated,
+                                        fast_loop.agent_cmd)
 
             # Update agent controller command
             if (not fast_loop.is_expert) and (fast_loop.flight_mode == 'mission'):

@@ -72,8 +72,8 @@ class VAEGANTrain(BaseTrain):
         l_fake, _ = self.model.discriminate(batch_x_fake.detach())
         l_prior, _ = self.model.discriminate(batch_x_prior.detach())
         loss_D = F.binary_cross_entropy(l_real, y_real) \
-                + F.binary_cross_entropy(l_fake, y_fake) \
-                + F.binary_cross_entropy(l_prior, y_fake)
+                + F.binary_cross_entropy(l_fake, y_fake)
+                # + F.binary_cross_entropy(l_prior, y_fake)
         self.optimizerD.zero_grad()
         loss_D.backward(retain_graph=True)
         self.optimizerD.step()
@@ -84,8 +84,8 @@ class VAEGANTrain(BaseTrain):
         l_fake, s_fake = self.model.discriminate(batch_x_fake) 
         l_prior, s_prior = self.model.discriminate(batch_x_prior)
         loss_D = F.binary_cross_entropy(l_real, y_real) \
-                + F.binary_cross_entropy(l_fake, y_fake) \
-                + F.binary_cross_entropy(l_prior, y_fake)
+                + F.binary_cross_entropy(l_fake, y_fake)
+                # + F.binary_cross_entropy(l_prior, y_fake)
         feature_loss = F.mse_loss(s_fake, s_real, reduction='sum').div(batch_size)
         gamma = 1e-2
         loss_G = gamma * feature_loss - loss_D

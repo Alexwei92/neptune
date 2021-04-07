@@ -38,7 +38,10 @@ class LatentCtrl():
         file.close()
 
         model = torch.load(model_path)
-        self.VAE_model = vae_model[model_type](**model_config['model_params']).to(self.device)
+        if model_type in vae_model:
+            self.VAE_model = vae_model[model_type](**model_config['model_params']).to(self.device)
+        elif model_type in vaegan_model:
+            self.VAE_model = vaegan_model[model_type](**model_config['model_params']).to(self.device)
         self.VAE_model.load_state_dict(model)
 
     def load_latent_model(self, model_path, model_type):
@@ -81,7 +84,7 @@ class LatentCtrl():
             y_pred = self.Latent_model(data)
             y_pred = y_pred.cpu().item()
         
-        if np.abs(y_pred) < 1e-3:
+        if np.abs(y_pred) < 1e-2:
             y_pred = 0.0
         
         return np.clip(y_pred, -1.0, 1.0)

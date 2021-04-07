@@ -407,7 +407,7 @@ class Controller():
         self.z_velocity = -z_velocity
 
     def step(self, cmd, estimated_height, flight_mode):
-        self.cmd_history = np.append(np.delete(self.cmd_history, 0), cmd)
+        self.cmd_history = np.append(np.delete(self.cmd_history, 0), cmd) # [i-N,...,i-1]
         yawRate = cmd * self.max_yawRate
 
         if self.use_rangefinder:

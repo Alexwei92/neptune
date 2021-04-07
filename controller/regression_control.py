@@ -45,7 +45,7 @@ class RegCtrl():
         elif self.file_type == 'pkl':
             y_pred, = self.model.predict(np.reshape(X, (1,-1)))
         
-        if np.abs(y_pred) < 1e-3:
+        if np.abs(y_pred) < 1e-2:
             y_pred = 0.0  
 
         return np.clip(y_pred, -1.0, 1.0)

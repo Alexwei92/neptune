@@ -200,11 +200,11 @@ if __name__ == '__main__':
             for subject in subject_list:
                 reg_kwargs.update({
                     'output_dir': os.path.join(output_dir, subject, 'iter'+str(iteration), 'reg'),
-                    'subject_list': [subject],
+                    'subject_list': subject,
                     'map_list': map_list,
                     'iteration': iteration,
                     })
-                RegTrain_single_advanced(**reg_kwargs)
+                RegTrain_multi_advanced(**reg_kwargs)
 
         elif dataloader_type == 'simple':
             if use_multicore: 
@@ -293,11 +293,11 @@ if __name__ == '__main__':
         img_resize = eval(config['train_params']['img_resize'])
         vae_model_type = config['train_params']['vae_model_type']
         vae_model_path = os.path.join(folder_path, config['train_params']['vae_model_path'])
-        latent_model_type = os.path.join(folder_path, config['train_params']['latent_model_type'])
+        latent_model_type = config['train_params']['latent_model_type']
 
         # Latent model config
         try:
-            file = open(os.path.join(setup_path.parent_dir, 'configs', 'latent_nn.yaml'), 'r')
+            file = open(os.path.join(setup_path.parent_dir, 'configs', latent_model_type + '.yaml'), 'r')
             latent_model_config = yaml.safe_load(file)
             file.close()
         except Exception as error:
@@ -321,7 +321,7 @@ if __name__ == '__main__':
         
         # DataLoader
         if dataloader_type == 'simple':
-            latent_model_config['log_params']['output_dir'] = output_dir
+            
 
             all_data = LatentDataset_simple(dataset_dir,
                                     num_prvs=num_prvs,
@@ -331,11 +331,26 @@ if __name__ == '__main__':
             train_data, test_data = train_test_split(all_data,
                                                 test_size=config['dataset_params']['test_size'],
                                                 random_state=config['dataset_params']['manual_seed'])     
-            print('Load latent datasets successfully.')         
+            print('Load latent datasets successfully.')    
+
+            # Create the agent
+            latent_model = latent_model[latent_model_type](**latent_model_config['model_params'])
+            vae_model = vae_model[vae_model_type](**vae_model_config['model_params'])
+            latent_model_config['log_params']['output_dir'] = output_dir
+            train_agent = LatentTrain(latent_model,
+                                vae_model,
+                                vae_model_path,
+                                device,
+                                is_eval=False,
+                                train_params=latent_model_config['train_params'],
+                                log_params=latent_model_config['log_params'])
+                
+            print('\n*** Start training ***')
+            train_agent.load_dataset(train_data, test_data)
+            train_agent.train()
+            print('Trained Latent model successfully.')   
 
         elif dataloader_type == 'advanced':
-            latent_model_config['log_params']['output_dir'] = os.path.join(output_dir, subject, 'iter'+str(iteration))
-
             for subject in subject_list:
                 all_data = LatentDataset_advanced(dataset_dir,
                                     subject_list=[subject],
@@ -351,18 +366,22 @@ if __name__ == '__main__':
                                                     random_state=config['dataset_params']['manual_seed'])     
                 print('Load latent datasets successfully.')
                 
-        # Create the agent
-        latent_model = latent_model[latent_model_type](**latent_model_config['model_params'])
-        vae_model = vae_model[vae_model_type](**vae_model_config['model_params'])
-        train_agent = LatentTrain(latent_model,
-                            vae_model,
-                            vae_model_path,
-                            device,
-                            is_eval=False,
-                            train_params=latent_model_config['train_params'],
-                            log_params=latent_model_config['log_params'])
-            
-        print('\n*** Start training ***')
-        train_agent.load_dataset(train_data, test_data)
-        train_agent.train()
-        print('Trained Latent model successfully.')   
+                # Create the agent
+                latent_model = latent_model[latent_model_type](**latent_model_config['model_params'])
+                if vae_model_type in vae_model:
+                    vae_model = vae_model[vae_model_type](**vae_model_config['model_params'])
+                elif vae_model_type in vaegan_model:
+                    vae_model = vaegan_model[vae_model_type](**vae_model_config['model_params'])
+                latent_model_config['log_params']['output_dir'] = os.path.join(output_dir, subject, 'iter'+str(iteration))
+                train_agent = LatentTrain(latent_model,
+                                    vae_model,
+                                    vae_model_path,
+                                    device,
+                                    is_eval=False,
+                                    train_params=latent_model_config['train_params'],
+                                    log_params=latent_model_config['log_params'])
+                    
+                print('\n*** Start training ***')
+                train_agent.load_dataset(train_data, test_data)
+                train_agent.train()
+                print('Trained Latent model successfully.')   

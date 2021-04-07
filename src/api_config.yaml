@@ -1,16 +1,16 @@
 ## Simulation parameters
 sim_params:
   loop_rate:                  10.0 # Hz
-  output_dir:                 'my_datasets/subject/map4/iter0' # save data to this folder
+  output_dir:                 'my_datasets/subject10/o2/iter1' # save data to this folder
   folder_path:                '/media/lab/Hard Disk' # leave it '' if you read/write data in the current folder,
                                                      # otherwise specify the path (e.g., on hard disk)
-  save_data:                  False # {True, False}
+  save_data:                  True # {True, False}
 
-  train_mode:                 'test' # {'train', 'test'}
-  agent_type:                 'latent' # {'none', 'reg', 'latent'}
-  dagger_type:                'none' # {'none', 'vanilla', 'hg'}
+  train_mode:                 'train' # {'train', 'test'}
+  agent_type:                 'reg' # {'none', 'reg', 'latent'}
+  dagger_type:                'hg' # {'none', 'vanilla', 'hg'}
 
-  initial_pose:               (0,0,5,0), (450,-26,5,0)
+  initial_pose:               (1,14,5,0), (118,-123,5,0)
                               # a set of (pos_x, pos_y, pos_z, yaw) 
                               # Map1: (0,0,5,0), (450,-26,5,0)
                               # Map2: (0,0,5,0), (467,12,5,0)
@@ -51,13 +51,11 @@ agent_params:
   # Regression
   reg_num_prvs:               5 # number of previous cmd to use
   reg_prvs_mode:              'exponential' # {'exponential', 'linear'} type of prvs cmd
-  reg_model_path:             'my_outputs/subject7/iter0/reg/reg_model.pkl' # regression model file path
+  reg_model_path:             'my_outputs/subject4/iter0/reg/reg_model.pkl' # regression model file path
   
   # Latent NN
   img_resize:                 (64, 64) # resize image before VAE, right now only support (64, 64)
-  latent_num_prvs:            5 # number of previous cmd to use
-  latent_prvs_mode:           'linear' # {'exponential', 'linear'} type of prvs cmd
-  vae_model_type:             'beta_vae' # VAE model type
-  vae_model_path:             'my_outputs/VAE/beta_vae_B/beta_vae_model_z_15.pt' # VAE model file path
-  latent_model_path:          'my_outputs/subject7/iter0/latent_nn/latent_nn_model_z_15.pt' # Latent model filepath
+  vae_model_type:             'vanilla_vae' # VAE model type
+  vae_model_path:             'my_outputs/VAE2/vanilla_vae/vanilla_vae_model_z_30.pt' # VAE model file path
+  latent_model_path:          'my_outputs/subject7/iter0/latent_nn_simple/latent_nn_simple_model_z_30.pt' # Latent model filepath
   latent_model_type:          'latent_nn_simple' # {'latent_nn_simple', 'latent_nn_complex'} Latent model type

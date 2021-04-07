@@ -247,7 +247,6 @@ class RegTrain_multi(RegTrain_single):
         # Save result to file
         self.save_result(model, weight)
 
-
 class RegTrain_single_advanced():
     """
     Linear Regression Training Agent with Single Core
@@ -263,7 +262,7 @@ class RegTrain_single_advanced():
         self.reg_type = kwargs['reg_type']
         self.preload = kwargs.get('preload', True)
         self.printout = kwargs.get('printout', False)
-        self.subject_list = kwargs.get('subject_list')
+        self.subject = kwargs.get('subject_list')
         self.map_list = kwargs.get('map_list')
         self.iteration = kwargs.get('iteration')
 
@@ -276,29 +275,28 @@ class RegTrain_single_advanced():
     def run(self):
         print('Loading datasets...')
         iteration = 'iter' + str(self.iteration)
-        for subject in self.subject_list:
-            for map in os.listdir(os.path.join(self.dataset_dir, subject)):
-                if map in self.map_list:
-                    folder_path = os.path.join(self.dataset_dir, subject, map, iteration)
-                    for subfolder in os.listdir(folder_path):
-                        subfolder_dir = os.path.join(folder_path, subfolder)
-                        file_list_color = glob.glob(os.path.join(subfolder_dir, 'color', '*.png'))
-                        file_list_depth = glob.glob(os.path.join(subfolder_dir, 'depth', '*.png'))
-                        file_list_color.sort()
-                        file_list_depth.sort()
-                        if len(file_list_color) != len(file_list_depth):
-                            raise Exception("The size of color and depth images does not match!")
-                        
-                        # Get feature vector
-                        X, y = self.get_sample(file_list_color, file_list_depth, subfolder_dir)
-                        if y is not None:
-                            # ensure that there is no inf term
-                            if np.sum(X==np.inf) > 0:
-                                print('*** Got Inf in the feature vector in {:s}!'.format(subfolder))
-                                X[X==np.inf] = 0.0
-                        
-                            self.X = np.concatenate((self.X, X), axis=0)
-                            self.y = np.concatenate((self.y, y), axis=0)
+        for map in os.listdir(os.path.join(self.dataset_dir, self.subject)):
+            if map in self.map_list:
+                folder_path = os.path.join(self.dataset_dir, self.subject, map, iteration)
+                for subfolder in os.listdir(folder_path):
+                    subfolder_dir = os.path.join(folder_path, subfolder)
+                    file_list_color = glob.glob(os.path.join(subfolder_dir, 'color', '*.png'))
+                    file_list_depth = glob.glob(os.path.join(subfolder_dir, 'depth', '*.png'))
+                    file_list_color.sort()
+                    file_list_depth.sort()
+                    if len(file_list_color) != len(file_list_depth):
+                        raise Exception("The size of color and depth images does not match!")
+                    
+                    # Get feature vector
+                    X, y = self.get_sample(file_list_color, file_list_depth, subfolder_dir, iteration)
+                    if y is not None:
+                        # ensure that there is no inf term
+                        if np.sum(X==np.inf) > 0:
+                            print('*** Got Inf in the feature vector in {:s}!'.format(subfolder))
+                            X[X==np.inf] = 0.0
+                    
+                        self.X = np.concatenate((self.X, X), axis=0)
+                        self.y = np.concatenate((self.y, y), axis=0)
 
         print('Load datasets successfully.')
         
@@ -308,9 +306,9 @@ class RegTrain_single_advanced():
         # Save result to file
         self.save_result(model, weight)
 
-    def get_sample(self, file_list_color, file_list_depth, subfolder_dir):
+    def get_sample(self, file_list_color, file_list_depth, subfolder_dir, iteration):
         # Read from telemetry file
-        X_extra, y, N = self.read_telemetry(subfolder_dir, self.num_prvs)
+        X_extra, y, N, pilot_index = self.read_telemetry(subfolder_dir, self.num_prvs, iteration)
 
         if N is not None:
             file_path = os.path.join(subfolder_dir, 'feature_preload.pkl') # default file name
@@ -335,13 +333,13 @@ class RegTrain_single_advanced():
                 pandas.DataFrame(X).to_pickle(file_path) 
 
             # Combine output
-            X = np.column_stack((X, X_extra))
+            X = np.column_stack((X[pilot_index,:], X_extra))
             # print('Load samples from {:s} successfully.'.format(subfolder_dir))  
             return X, y
         else:
             return None, None
 
-    def read_telemetry(self, folder_dir, num_prvs):
+    def read_telemetry(self, folder_dir, num_prvs, iteration=0):
         # Read telemetry csv       
         telemetry_data = pandas.read_csv(os.path.join(folder_dir, 'airsim.csv'))
         N = len(telemetry_data) - 1 # length of data 
@@ -377,7 +375,10 @@ class RegTrain_single_advanced():
         else:
             X_extra = yawRate_norm
         
-        return X_extra, y, N
+        # flag
+        flag = telemetry_data['flag'][:N].to_numpy()
+        pilot_index = (flag == 0)
+        return X_extra[pilot_index,:], y[pilot_index], N, pilot_index
        
     def train(self):
         result = calculate_regression(self.X, self.y, method=self.reg_type)
@@ -399,3 +400,51 @@ class RegTrain_single_advanced():
         if weight is not None:
             np.savetxt(os.path.join(self.output_dir, self.weight_filename), weight, delimiter=',')
             print('Save weight to: ', os.path.join(self.output_dir, self.weight_filename))
+
+class RegTrain_multi_advanced(RegTrain_single_advanced):
+    """
+    Linear Regression Training Agent with Multi Core
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def run(self):
+        print('Loading datasets...')
+        jobs = []    
+        pool = mp.Pool(min(12, mp.cpu_count())) # use how many cores
+        for iteration in range(self.iteration+1):
+            for map in os.listdir(os.path.join(self.dataset_dir, self.subject)):
+                if map in self.map_list:
+                    folder_path = os.path.join(self.dataset_dir, self.subject, map, 'iter'+str(iteration))
+                    print(folder_path)
+                    for subfolder in os.listdir(folder_path):
+                        subfolder_dir = os.path.join(folder_path, subfolder)
+                        file_list_color = glob.glob(os.path.join(subfolder_dir, 'color', '*.png'))
+                        file_list_depth = glob.glob(os.path.join(subfolder_dir, 'depth', '*.png'))
+                        file_list_color.sort()
+                        file_list_depth.sort()
+                        if len(file_list_color) != len(file_list_depth):
+                            raise Exception("The size of color and depth images does not match!")
+                        
+                        jobs.append(pool.apply_async(self.get_sample, args=(file_list_color, file_list_depth, subfolder_dir, iteration)))
+            
+        # Wait results
+        results = [proc.get() for proc in tqdm(jobs)] 
+
+        for X, y in results:
+            if y is not None:
+                # ensure that there is no inf term
+                if np.sum(X==np.inf) > 0:
+                    print('*** Got Inf in the feature vector in {:s}!'.format(subfolder))
+                    X[X==np.inf] = 0.0
+            
+                self.X = np.concatenate((self.X, X), axis=0)
+                self.y = np.concatenate((self.y, y), axis=0)
+
+        print('Load datasets successfully.')
+        
+        # Train the model
+        model, weight = self.train()
+        
+        # Save result to file
+        self.save_result(model, weight)

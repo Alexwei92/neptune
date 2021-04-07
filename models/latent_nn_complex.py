@@ -2,6 +2,8 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+from .utils import weights_init
+
 class NN(nn.Module):
     '''
     Simple fully-connected network for IL
@@ -15,9 +17,11 @@ class NN(nn.Module):
         self.linear5 = nn.Linear(1000, 1000)
         self.linear6 = nn.Linear(1000, 1)
 
-        self.bn1 = nn.BatchNorm1d(1000)
-        self.bn2 = nn.BatchNorm1d(1000)
-        self.bn3 = nn.BatchNorm1d(1000)
+        # self.bn1 = nn.BatchNorm1d(1000)
+        # self.bn2 = nn.BatchNorm1d(1000)
+        # self.bn3 = nn.BatchNorm1d(1000)
+        # self.bn4 = nn.BatchNorm1d(1000)
+        # self.bn5 = nn.BatchNorm1d(1000)
 
     def forward(self, x):
         # Hidden layers
@@ -34,11 +38,11 @@ class NN(nn.Module):
         x = F.relu(x)
 
         x = self.linear4(x)
-        # x = self.bn3(x)
+        # x = self.bn4(x)
         x = F.relu(x)
 
         x = self.linear5(x)
-        # x = self.bn3(x)
+        # x = self.bn5(x)
         x = F.relu(x)
 
         # Output layer
@@ -58,6 +62,7 @@ class LatentNN_complex(nn.Module):
         super().__init__()
         
         self.NN = NN(z_dim + num_prvs + 1)
+        self.NN.apply(weights_init)
         self.z_dim = z_dim
 
     def forward(self, x):

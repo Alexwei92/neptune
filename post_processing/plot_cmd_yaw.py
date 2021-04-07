@@ -33,7 +33,7 @@ if __name__ == '__main__':
     dataset_dir = '/media/lab/Hard Disk/' + 'my_datasets'
     
     # Subject
-    subject = 'subject2'
+    subject = 'subject7'
 
     # Map list
     map_list = [
