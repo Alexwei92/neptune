@@ -73,7 +73,7 @@ class LatentCtrl():
 
         self.transform_composed = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize((127.5, 127.5, 127.5), (127.5, 127.5, 127.5)), # from [0,255] to [-1,1]
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)), # from [0,255] to [-1,1]
         ])
         print('The latent controller is initialized.')
 
@@ -120,7 +120,8 @@ class LatentCtrl():
         self.VAE_model.eval()
         self.Latent_model.eval()
         with torch.no_grad():
-            z = self.VAE_model.get_latent(image_tensor.unsqueeze(0).to(self.device))
+            z = self.VAE_model.get_latent(image_tensor.unsqueeze(0).to(self.device), with_logvar=True)
+            result = self.VAE_model(image_tensor.unsqueeze(0).to(self.device))
             state_extra = []
             if self.num_prvs > 0:
                 for index in self.prvs_index:
@@ -134,16 +135,16 @@ class LatentCtrl():
         if np.abs(y_pred) < 1e-2:
             y_pred = 0.0
         
-        return np.clip(y_pred, -1.0, 1.0)
+        return np.clip(y_pred, -1.0, 1.0), z.cpu().numpy()[0], result[0].cpu().squeeze(0), result[1].cpu().squeeze(0)
 
 if __name__ == '__main__':
-    folder_path = '/media/lab/Hard Disk/my_datasets/subject4/map1/iter0/2021_Feb_21_14_50_33'
+    folder_path = '/media/lab/Hard Disk/my_datasets/subject7/map1/iter0/2021_Feb_24_14_51_50'
 
     # Latent NN controller
     img_resize = (64, 64)
-    vae_model_path = '/media/lab/Hard Disk/my_outputs/VAE2/vanilla_vae/vanilla_vae_model_z_30.pt'
+    vae_model_path = '/media/lab/Hard Disk/my_outputs/VAE/vanilla_vae/vanilla_vae_model_z_15.pt'
     vae_model_type = 'vanilla_vae'
-    latent_model_path = '/media/lab/Hard Disk/my_outputs/subject7/iter0/latent_nn_simple_vanilla_5/latent_nn_simple_model_z_30.pt'
+    latent_model_path = '/media/lab/Hard Disk/my_outputs/subject7/iter0/latent_nn_simple/latent_nn_simple_model_z_15.pt'
     latent_model_type = 'latent_nn_simple'
     controller_agent = LatentCtrl(vae_model_path,
                             vae_model_type,
@@ -153,10 +154,12 @@ if __name__ == '__main__':
 
     # read data
     num_prvs = 5
-    prvs_mode = 'linear'
+    prvs_mode = 'exponential'
     timestamp, yaw_cmd, X, file_list_color = read_data(folder_path, num_prvs, prvs_mode)
     yawRate = X[:,-1]
     cmd_history = X[:,:-1]
+
+    cv2.namedWindow('raw', cv2.WINDOW_NORMAL)
 
     # Start the loop
     i = 0
@@ -170,11 +173,16 @@ if __name__ == '__main__':
             break
 
         # pred
-        y_pred = controller_agent.predict(image_rgb, yawRate[i], cmd_history[i,:])
+        y_pred, z, image_pred, image_raw = controller_agent.predict(image_rgb, yawRate[i], cmd_history[i,:])
         
         # plot
-        plot_with_cmd_compare('latent', image_bgr, yaw_cmd[i], y_pred)
-        plt.pause(1e-5)
+        plot_with_cmd_compare('latent', image_bgr, yaw_cmd[i]/2, y_pred/2)
+
+        image_pred = image_pred.numpy()
+        image_raw = image_raw.numpy()
+        image_combine = np.concatenate((image_raw, image_pred), axis=2)
+        image_combine = ((image_combine + 1.0) / 2.0 * 255.0).astype(np.uint8)
+        cv2.imshow('raw', cv2.cvtColor(image_combine.transpose(1,2,0), cv2.COLOR_RGB2BGR))
 
         elapsed_time = time.perf_counter() - tic
         time.sleep(max(timestamp[i] - elapsed_time, 0))

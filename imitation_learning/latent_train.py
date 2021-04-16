@@ -14,6 +14,7 @@ class LatentTrain():
     '''
     def __init__(self,
                 Latent_model,
+                VAE_type,
                 VAE_model,
                 VAE_model_path,
                 device,
@@ -48,7 +49,7 @@ class LatentTrain():
         self.checkpoint_preload = log_params['checkpoint_preload']
         self.log_interval = log_params['log_interval']
         self.use_tensorboard = log_params['use_tensorboard']
-        self.model_name = log_params['name']
+        self.model_name = log_params['name'] + '_' + VAE_type
         log_folder = os.path.join(log_params['output_dir'], self.model_name)
         if not os.path.isdir(log_folder):
             os.makedirs(log_folder)
@@ -126,16 +127,24 @@ class LatentTrain():
             train_total_loss = 0
             for batch_idx, batch_x in enumerate(self.train_dataloader):
                 self.num_iter += 1
-                batch_image, batch_extra, batch_label = batch_x
-                batch_z = self.VAE_model.get_latent(batch_image.to(self.device))
-                batch_all = torch.cat([batch_z, batch_extra.to(self.device)], axis=1)
-                batch_x_pred = self.Latent_model(batch_all).view(-1)
+                if len(batch_x) == 3:
+                    batch_image, batch_extra, batch_label = batch_x
+                    batch_z = self.VAE_model.get_latent(batch_image.to(self.device), with_logvar=False)
+                    batch_all = torch.cat((batch_z, batch_extra.to(self.device)), axis=1)
+                    # batch_x_pred = self.Latent_model(batch_z, batch_extra.to(self.device)).view(-1)
+                    batch_x_pred = self.Latent_model(batch_all).view(-1)
+                elif len(batch_x) == 2:
+                    batch_image, batch_label = batch_x
+                    batch_z = self.VAE_model.get_latent(batch_image.to(self.device), with_logvar=False)
+                    # batch_x_pred = self.Latent_model(batch_z, None).view(-1)
+                    batch_x_pred = self.Latent_model(batch_z).view(-1)
+
                 train_loss = self.Latent_model.loss_function(batch_x_pred, batch_label.to(self.device))
                 self.optimizer.zero_grad()
                 train_loss['total_loss'].backward()
                 self.optimizer.step()
 
-                train_total_loss += np.sqrt(train_loss['total_loss'].item())
+                train_total_loss += train_loss['total_loss'].item()
                 self.iteration.append(self.num_iter)
                 for name in train_loss.keys():
                     self.loss_history[name].append(train_loss[name].item())               
@@ -148,7 +157,7 @@ class LatentTrain():
             train_total_loss /= n_batch
 
             # Test
-            test_total_loss = self.test()
+            # test_total_loss = self.test()
 
             # logging
             self.epoch.append(epoch + self.last_epoch)
@@ -158,22 +167,26 @@ class LatentTrain():
                 self.save_checkpoint(self.checkpoint_filename)
                 self.save_model(self.model_filename)
 
-    def test(self):
-        self.Latent_model.eval()
-        self.VAE_model.eval()
-        test_total_loss = 0
-        with torch.no_grad():
-            for batch_idx, batch_x in enumerate(self.test_dataloader):
-                batch_image, batch_extra, batch_label = batch_x
-                batch_z = self.VAE_model.get_latent(batch_image.to(self.device))
-                batch_all = torch.cat([batch_z, batch_extra.to(self.device)], axis=1)
-                batch_x_pred = self.Latent_model(batch_all).view(-1)
-                test_loss = self.Latent_model.loss_function(batch_x_pred, batch_label.to(self.device))
-                test_total_loss += np.sqrt(test_loss['total_loss'].item())
+    # def test(self):
+        # self.Latent_model.eval()
+        # self.VAE_model.eval()
+        # test_total_loss = 0
+        # with torch.no_grad():
+        #     for batch_idx, batch_x in enumerate(self.test_dataloader):
+        #         if len(batch_x) == 3:
+        #             batch_image, batch_extra, batch_label = batch_x
+        #             batch_z = self.VAE_model.get_latent(batch_image.to(self.device), with_logvar=False)
+        #             batch_x_pred = self.Latent_model(batch_z, batch_extra.to(self.device)).view(-1)
+        #         elif len(batch_x) == 2:
+        #             batch_image, batch_label = batch_x
+        #             batch_z = self.VAE_model.get_latent(batch_image.to(self.device), with_logvar=False)
+        #             batch_x_pred = self.Latent_model(batch_z, None).view(-1)
+        #         test_loss = self.Latent_model.loss_function(batch_x_pred, batch_label.to(self.device))
+        #         test_total_loss += np.sqrt(test_loss['total_loss'].item())
         
-        n_batch = len(self.test_dataloader)
-        test_total_loss /= n_batch
-        return test_total_loss
+        # n_batch = len(self.test_dataloader)
+        # test_total_loss /= n_batch
+        # return test_total_loss
 
     def save_checkpoint(self, file_path):
         checkpoint_dict = {
@@ -188,6 +201,9 @@ class LatentTrain():
 
     def save_model(self, file_path):
         torch.save(self.Latent_model.state_dict(), file_path)
+
+    def get_current_epoch(self):
+        return self.epoch[-1]
 
     def get_train_history(self):
         return self.iteration, self.loss_history

@@ -55,6 +55,32 @@ def plot_with_cmd(win_name, image_raw, input, is_expert):
     cv2.line(image, (int(0.5*width),int(h1*height)), (int(0.5*width),int(h2*height)), (255,255,255), 1) # white
     cv2.imshow(win_name, image) 
 
+# Plot image with cmd and return
+# input is normalized to [-0.5, 0.5]
+def plot_with_cmd_replay(win_name, image_raw, input, is_expert):
+    image = image_raw.copy()
+    height = image.shape[0]
+    width = image.shape[1]
+    # plot box
+    w1 = 0.35 # [0,1]
+    w2 = 0.65 # [0,1]
+    h1 = 0.85 # [0,1]
+    h2 = 0.9  # [0,1]
+    cv2.rectangle(image, (int(w1*width), int(h1*height)), (int(w2*width), int(h2*height)), (0,0,0), 2) # black
+    # plot bar
+    bar_width = 5 # pixel
+    center_pos = ((w2-w1)*width - bar_width) * input + 0.5*width
+    if is_expert:
+        color = (0,0,255) # red
+    else:
+        color = (255,0,0) # blue
+    cv2.rectangle(image, (int(center_pos-bar_width/2),int(h1*height)), (int(center_pos+bar_width/2),int(h2*height)), color, -1)
+    # plot center line
+    cv2.line(image, (int(0.5*width),int(h1*height)), (int(0.5*width),int(h2*height)), (255,255,255), 1) # white
+    cv2.imshow(win_name, image) 
+
+    return image
+
 # Plot image with cmds to compare
 # input is normalized to [-0.5, 0.5]
 def plot_with_cmd_compare(win_name, image_raw, pilot_input, agent_input):

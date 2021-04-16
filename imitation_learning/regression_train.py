@@ -262,7 +262,7 @@ class RegTrain_single_advanced():
         self.reg_type = kwargs['reg_type']
         self.preload = kwargs.get('preload', True)
         self.printout = kwargs.get('printout', False)
-        self.subject = kwargs.get('subject_list')
+        self.subject = kwargs.get('subject')
         self.map_list = kwargs.get('map_list')
         self.iteration = kwargs.get('iteration')
 
@@ -348,7 +348,7 @@ class RegTrain_single_advanced():
             print('Find crashed dataset in {:s}'.format(folder_dir))
             N -= (5 * 10) # remove the last 5 seconds data
             if N < 0:
-                return None, None, None
+                return None, None, None, None
 
         # Yaw cmd
         y = telemetry_data['yaw_cmd'][:N].to_numpy()
@@ -415,19 +415,19 @@ class RegTrain_multi_advanced(RegTrain_single_advanced):
         for iteration in range(self.iteration+1):
             for map in os.listdir(os.path.join(self.dataset_dir, self.subject)):
                 if map in self.map_list:
-                    folder_path = os.path.join(self.dataset_dir, self.subject, map, 'iter'+str(iteration))
-                    print(folder_path)
-                    for subfolder in os.listdir(folder_path):
-                        subfolder_dir = os.path.join(folder_path, subfolder)
-                        file_list_color = glob.glob(os.path.join(subfolder_dir, 'color', '*.png'))
-                        file_list_depth = glob.glob(os.path.join(subfolder_dir, 'depth', '*.png'))
-                        file_list_color.sort()
-                        file_list_depth.sort()
-                        if len(file_list_color) != len(file_list_depth):
-                            raise Exception("The size of color and depth images does not match!")
-                        
-                        jobs.append(pool.apply_async(self.get_sample, args=(file_list_color, file_list_depth, subfolder_dir, iteration)))
-            
+                    folder_path = os.path.join(self.dataset_dir, self.subject, map, 'iter' + str(iteration))
+                    if os.path.isdir(folder_path):
+                        for subfolder in os.listdir(folder_path):
+                            subfolder_dir = os.path.join(folder_path, subfolder)
+                            file_list_color = glob.glob(os.path.join(subfolder_dir, 'color', '*.png'))
+                            file_list_depth = glob.glob(os.path.join(subfolder_dir, 'depth', '*.png'))
+                            file_list_color.sort()
+                            file_list_depth.sort()
+                            if len(file_list_color) != len(file_list_depth):
+                                raise Exception("The size of color and depth images does not match!")
+                            
+                            jobs.append(pool.apply_async(self.get_sample, args=(file_list_color, file_list_depth, subfolder_dir, iteration)))
+                
         # Wait results
         results = [proc.get() for proc in tqdm(jobs)] 
 

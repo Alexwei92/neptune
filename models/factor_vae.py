@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from .vanilla_vae import Dronet, Decoder
+from .vanilla_vae_old import Dronet, Decoder
 from .utils import weights_init
 
 class Discriminator(nn.Module):
@@ -54,10 +54,13 @@ class FactorVAE(nn.Module):
         mu, logvar = self.Encoder(x)
         return mu, logvar
 
-    def reparameterize(self, mu, logvar):
-        std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
-        return mu + eps * std
+    def reparameterize(self, mu, logvar, with_logvar=True):
+        if with_logvar:
+            std = torch.exp(0.5 * logvar)
+            eps = torch.randn_like(std)
+            return mu + eps * std
+        else:
+            return mu
 
     def decode(self, z):
         x_recon = self.Decoder(z)
@@ -125,9 +128,9 @@ class FactorVAE(nn.Module):
         samples = self.decode(z)
         return samples
 
-    def get_latent(self, x):
+    def get_latent(self, x, with_logvar=True):
         mu, logvar = self.encode(x)
-        z = self.reparameterize(mu, logvar)
+        z = self.reparameterize(mu, logvar, with_logvar)
         return z
 
     def get_latent_dim(self):

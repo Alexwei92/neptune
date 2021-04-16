@@ -3,7 +3,7 @@ global_params:
   folder_path:                '/media/lab/Hard Disk' # leave it '' if you read/write data in the current folder, 
                                                      # otherwise specify the path (e.g., on hard disk)
   dataset_dir:                'my_datasets/' # source datasets path
-  output_dir:                 'my_outputs/' # save output to this path
+  output_dir:                 'my_outputs/VAE64' # save output to this path
   result_only:                False  # this will diable all the trainings and only display the existing results
 
 ## Train parameters
@@ -11,7 +11,7 @@ train_params:
   device:                     'cuda:0' # {'cuda:idx', 'cpu'} torch device
   image_size:                 (480, 640) # (Width, Height) of the input image
 
-  train_reg:                  True # enable train linear regression weights
+  train_reg:                  False # enable train linear regression weights
   preload_sample:             True # preload samples from file
   reg_num_prvs:               5 # number of previous cmd to use
   reg_prvs_mode:              'exponential' # {'exponential', 'linear'} 
@@ -20,30 +20,32 @@ train_params:
   reg_model_filename:         'reg_model.pkl' # regression trained model filename
   use_multicore:              True # this will use multiple cpu cores to train the model
   
-  train_vae:                  False # enable train VAE model
+  train_vae:                  True # enable train VAE model
   model_type:                 'vae_gan' # {'vanilla_vae', 'beta_vae_h', 'beta_vae_b', 'factor_vae', 'vae_gan', 'dc_gan'} model type
-  img_resize:                 (64, 64) # resize image before VAE, right now only support (64, 64)
+  img_resize:                 (64, 64) # resize image before VAE, right now only support (64, 64) and (128, 128)
 
-  train_latent:               False  # enable train latent controller network model
+  train_latent:               False # enable train latent controller network model
   vae_model_type:             'vanilla_vae' # VAE model type
-  vae_model_path:             'my_outputs/VAE2/vanilla_vae/vanilla_vae_model_z_30.pt' # VAE model file path
-  latent_model_type:          'latent_nn_simple' # {'latent_nn_simple', 'latent_nn_complex'} model type
+  vae_model_path:             'my_outputs/VAE64/vanilla_vae/vanilla_vae_model_z_64.pt' # VAE model file path
+
+  train_endToend:             False # enable train end to end
 
 # Dataset parameters
 dataset_params:
   test_size:                  0.1 # in percentage, used in train_test_split
   manual_seed:                11 # random state
+  iteration:                  0 # iteration number in DAgger
   dataloader_type:            'advanced' # {'simple', 'advanced'}
   subject_list:               [ # subject list
-                              # 'subject1',
-                              # 'subject2',
-                              # 'subject3',
-                              # 'subject4',
-                              # 'subject5',
-                              # 'subject6',
-                              # 'subject7',
-                              # 'subject8',
-                              # 'subject9',
+                              'subject1',
+                              'subject2',
+                              'subject3',
+                              'subject4',
+                              'subject5',
+                              'subject6',
+                              'subject7',
+                              'subject8',
+                              'subject9',
                               'subject10',
                             ]
   map_list:                   [ # map list
@@ -58,4 +60,3 @@ dataset_params:
                               # 'o1',
                               'o2',
                             ]
-  iteration:                  1 # iteration number in DAgger

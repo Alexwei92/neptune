@@ -1,14 +1,14 @@
 model_params:
   name:                   'FactorVAE'
   in_channels:            3
-  z_dim:                  15
+  z_dim:                  30
   input_dim:              64
   # (https://arxiv.org/pdf/1802.05983.pdf)
   gamma:                  30
 
 train_params:
   batch_size:             128
-  n_epochs:               50
+  n_epochs:               150
   optimizer:  
     type:                 'Adam'
     learning_rate:        0.0001
@@ -23,7 +23,7 @@ train_params:
 
 log_params:
   name:                   'factor_vae'
-  log_interval:           5
-  checkpoint_preload:     True
+  log_interval:           10
+  checkpoint_preload:     False
   generate_samples:       True
   use_tensorboard:        True

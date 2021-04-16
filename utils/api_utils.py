@@ -15,11 +15,17 @@ PRECISION = 8 # decimal digits
 colorama.init()
 
 # Add random offset to pose
-def add_offset_to_pose(pose, pos_offset=1, yaw_offset=np.pi*2):
-    position = airsim.Vector3r(pos_offset*np.random.rand()+pose[0], pos_offset*np.random.rand()+pose[1], -pose[2])
-    orientation = airsim.to_quaternion(0, 0, yaw_offset*np.random.rand()+pose[3])
-    pose_with_offset = airsim.Pose(position, orientation)
-    return pose_with_offset
+def add_offset_to_pose(pose, pos_offset=1, yaw_offset=np.pi*2, enable_offset=True):
+    if enable_offset:
+        position = airsim.Vector3r(pos_offset*np.random.rand()+pose[0], pos_offset*np.random.rand()+pose[1], -pose[2])
+        orientation = airsim.to_quaternion(0, 0, yaw_offset*np.random.rand()+pose[3])
+        pose_with_offset = airsim.Pose(position, orientation)
+        return pose_with_offset
+    else:
+        position = airsim.Vector3r(pose[0], pose[1], -pose[2])
+        orientation = airsim.to_quaternion(0, 0, pose[3])
+        pose_without_offset = airsim.Pose(position, orientation)
+        return pose_without_offset
 
 # Get yaw from orientation
 def get_yaw_from_orientation(orientation):
@@ -64,6 +70,7 @@ class FastLoop():
         # simulation
         self.image_size = kwargs.get('image_size')
         self.initial_pose = kwargs.get('initial_pose')
+        self.random_start = kwargs.get('random_start')
         self.loop_rate = kwargs.get('loop_rate')
         self.train_mode = kwargs.get('train_mode')
         
@@ -115,7 +122,7 @@ class FastLoop():
         self.client.takeoffAsync()
 
         # Initial pose
-        self.client.simSetVehiclePose(add_offset_to_pose(random.choice(self.initial_pose)), ignore_collison=True)
+        self.client.simSetVehiclePose(add_offset_to_pose(random.choice(self.initial_pose), self.random_start), ignore_collison=True)
         time.sleep(0.5)
 
         # Controller Init
@@ -257,7 +264,7 @@ class FastLoop():
         self.client.reset()
         self.client.enableApiControl(True)
         self.client.armDisarm(True)
-        self.client.simSetVehiclePose(add_offset_to_pose(random.choice(self.initial_pose)), ignore_collison=True)      
+        self.client.simSetVehiclePose(add_offset_to_pose(random.choice(self.initial_pose), self.random_start), ignore_collison=True)      
 
         if self.use_rangefinder:
             self.rangefinder.reset()

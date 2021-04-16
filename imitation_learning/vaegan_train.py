@@ -72,8 +72,8 @@ class VAEGANTrain(BaseTrain):
         l_fake, _ = self.model.discriminate(batch_x_fake.detach())
         l_prior, _ = self.model.discriminate(batch_x_prior.detach())
         loss_D = F.binary_cross_entropy(l_real, y_real) \
-                + F.binary_cross_entropy(l_fake, y_fake)
-                # + F.binary_cross_entropy(l_prior, y_fake)
+                + F.binary_cross_entropy(l_fake, y_fake) \
+                + F.binary_cross_entropy(l_prior, y_fake)
         self.optimizerD.zero_grad()
         loss_D.backward(retain_graph=True)
         self.optimizerD.step()
@@ -84,10 +84,10 @@ class VAEGANTrain(BaseTrain):
         l_fake, s_fake = self.model.discriminate(batch_x_fake) 
         l_prior, s_prior = self.model.discriminate(batch_x_prior)
         loss_D = F.binary_cross_entropy(l_real, y_real) \
-                + F.binary_cross_entropy(l_fake, y_fake)
-                # + F.binary_cross_entropy(l_prior, y_fake)
+                + F.binary_cross_entropy(l_fake, y_fake) \
+                + F.binary_cross_entropy(l_prior, y_fake)
         feature_loss = F.mse_loss(s_fake, s_real, reduction='sum').div(batch_size)
-        gamma = 1e-2
+        gamma = 1e-3
         loss_G = gamma * feature_loss - loss_D
         self.optimizerG.zero_grad()
         loss_G.backward(retain_graph=True)
@@ -96,15 +96,15 @@ class VAEGANTrain(BaseTrain):
         # (3) Update Encoder
         #####################  
         kld = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())
-        kld_z = kld.mean(0)
+        # kld_z = kld.mean(0)
         kld = kld.sum(1).mean(0)
         batch_x_fake = self.model.decode(batch_z)
         _, s_fake = self.model.discriminate(batch_x_fake)
         feature_loss = F.mse_loss(s_fake, s_real, reduction='sum').div(batch_size)
         # beta-VAE
-        C = torch.clamp(self.C_max / self.C_stop_iter * self.num_iter, 0, self.C_max.data[0])
-        loss_E = feature_loss + self.gamma * (kld - C).abs()
-        # loss_E = feature_loss + self.beta * kld
+        # C = torch.clamp(self.C_max / self.C_stop_iter * self.num_iter, 0, self.C_max.data[0])
+        # loss_E = feature_loss + self.gamma * (kld - C).abs()
+        loss_E = feature_loss + self.beta * kld
         self.optimizerE.zero_grad()
         loss_E.backward()
         self.optimizerE.step()
@@ -118,8 +118,12 @@ class VAEGANTrain(BaseTrain):
         train_netG = True
         train_netE = True
 
-        return {'netE_loss': loss_E, 'netG_loss': loss_G, 'netD_loss': loss_D,
-                'kld_loss': kld, 'kld_loss_z': kld_z, 'mse_loss': mse_loss,
+        return {'netE_loss': loss_E,
+                'netG_loss': loss_G,
+                'netD_loss': loss_D,
+                'kld_loss': kld,
+                # 'kld_loss_z': kld_z,
+                'mse_loss': mse_loss,
                 'feature_loss': feature_loss}
 
     def train(self):

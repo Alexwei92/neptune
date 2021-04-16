@@ -36,6 +36,7 @@ if __name__ == '__main__':
     initial_pose = eval(config['sim_params']['initial_pose'])
     if not isinstance(initial_pose[0], tuple):
         initial_pose = (initial_pose, initial_pose) # to use random.choice properly
+    random_start = config['sim_params']['random_start']
 
     # Control settings
     max_yawRate = config['ctrl_params']['max_yawRate']
@@ -45,7 +46,11 @@ if __name__ == '__main__':
     use_rangefinder = config['ctrl_params']['use_rangefinder']
     
     # Joystick/RC settings
-    joy = Joystick(config['rc_params']['device_id']) 
+    use_keyboard = config['rc_params']['use_keyboard']
+    if use_keyboard:
+        joy = Joystick_fake() 
+    else:
+        joy = Joystick(config['rc_params']['device_id']) 
     yaw_axis = config['rc_params']['yaw_axis']
     type_axis = config['rc_params']['type_axis']
     mode_axis = config['rc_params']['mode_axis']
@@ -61,6 +66,7 @@ if __name__ == '__main__':
         'dagger_type': dagger_type,
         'image_size': image_size,
         'initial_pose': initial_pose,
+        'random_start': random_start,
         'loop_rate': loop_rate,
         'max_yawRate': max_yawRate,
         'mission_height': mission_height,
@@ -84,16 +90,20 @@ if __name__ == '__main__':
         controller_agent = RegCtrl(num_prvs, prvs_mode, image_size, model_path, printout=False)
     elif agent_type == 'latent':
         # Latent NN controller
-        img_resize = (64, 64)
+        img_resize = eval(config['agent_params']['img_resize'])
         vae_model_path = os.path.join(folder_path, config['agent_params']['vae_model_path'])
         vae_model_type = config['agent_params']['vae_model_type']
         latent_model_path = os.path.join(folder_path, config['agent_params']['latent_model_path'])
-        latent_model_type = config['agent_params']['latent_model_type']
         controller_agent = LatentCtrl(vae_model_path,
                                 vae_model_type,
                                 latent_model_path,
-                                latent_model_type,
                                 img_resize)
+    elif agent_type == 'endToend':
+        # End to End controller
+        img_resize = (64, 64)
+        model_path = os.path.join(folder_path, config['agent_params']['endToend_model_path'])
+        controller_agent = EndToEndCtrl(model_path, img_resize)        
+
     elif agent_type == 'none':
         # Manual control
         dagger_type = 'none'
@@ -130,6 +140,11 @@ if __name__ == '__main__':
         # Multi-threading process for state machine
         fastloop_thread = threading.Thread(target=fast_loop.run)
         fastloop_thread.start()
+
+        # use keyboard
+        if use_keyboard:
+            joystick_thread = threading.Thread(target=joy.run)
+            joystick_thread.start()
 
         time.sleep(1.0)
         print_msg("Ready to fly!", type=1)
@@ -169,6 +184,8 @@ if __name__ == '__main__':
                 elif agent_type == 'latent':
                     fast_loop.agent_cmd = controller_agent.predict(fast_loop.image_color, fast_loop.get_yaw_rate(), \
                                                                 fast_loop.controller.cmd_history)
+                elif agent_type == 'endToend':
+                        fast_loop.agent_cmd = controller_agent.predict(fast_loop.image_color, fast_loop.image_depth)       
                 else:
                     raise Exception('You must define an agent controller type!')
 
@@ -217,6 +234,8 @@ if __name__ == '__main__':
     finally:
         print('===============================')
         print('Clean up the code...')
+        if use_keyboard:
+            joy.is_active = False
         disp_handle.is_active = False
         fast_loop.is_active = False
         joy.clean()

@@ -50,8 +50,8 @@ def read_data(folder_path, num_prvs=5):
     return timestamp, yaw_cmd, X, file_list_color
 
 if __name__ == '__main__':
-    folder_path = '/media/lab/Hard Disk/my_datasets/subject1/map1/iter0/2021_Feb_21_09_22_37'
-    weight_path = '/media/lab/Hard Disk/my_outputs/subject1/iter0/reg/reg_weight.csv'
+    folder_path = '/media/lab/Hard Disk/my_datasets/subject7/map1/iter0/2021_Feb_24_14_51_50'
+    weight_path = '/media/lab/Hard Disk/my_outputs/subject7/iter0/reg/reg_weight.csv'
 
     # load weightq
     weight = np.genfromtxt(weight_path, delimiter=',')

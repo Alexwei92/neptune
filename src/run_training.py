@@ -88,7 +88,7 @@ if __name__ == '__main__':
             model_config = yaml.safe_load(file)
             file.close()
         except Exception as error:
-            print(str(error), type=3)
+            print_msg(str(error), type=3)
             exit()
 
         print('Model Type: {:s}'.format(model_type))
@@ -127,9 +127,9 @@ if __name__ == '__main__':
         print('Epoch = {:d}'.format(test_agent.get_current_epoch()))
         
         if model_type not in gan_model:
-            # KLD loss
-            plot_KLD_losses(test_agent.get_train_history(), plot_sum=False, plot_mean=True,
-                        save_path=os.path.join(output_dir, model_type, 'kld_loss_z.png'))
+            # # KLD loss
+            # plot_KLD_losses(test_agent.get_train_history(), plot_sum=False, plot_mean=True,
+            #             save_path=os.path.join(output_dir, model_type, 'kld_loss_z.png'))
         
             # latent traversal
             if dataloader_type == 'simple':
@@ -200,7 +200,7 @@ if __name__ == '__main__':
             for subject in subject_list:
                 reg_kwargs.update({
                     'output_dir': os.path.join(output_dir, subject, 'iter'+str(iteration), 'reg'),
-                    'subject_list': subject,
+                    'subject': subject,
                     'map_list': map_list,
                     'iteration': iteration,
                     })
@@ -293,22 +293,22 @@ if __name__ == '__main__':
         img_resize = eval(config['train_params']['img_resize'])
         vae_model_type = config['train_params']['vae_model_type']
         vae_model_path = os.path.join(folder_path, config['train_params']['vae_model_path'])
-        latent_model_type = config['train_params']['latent_model_type']
 
         # Latent model config
         try:
-            file = open(os.path.join(setup_path.parent_dir, 'configs', latent_model_type + '.yaml'), 'r')
+            file = open(os.path.join(setup_path.parent_dir, 'configs', 'latent_nn.yaml'), 'r')
             latent_model_config = yaml.safe_load(file)
             file.close()
         except Exception as error:
             print_msg(str(error), type=3)
             exit()
         
-        num_prvs = latent_model_config['model_params']['num_prvs']
-        prvs_mode = latent_model_config['model_params']['prvs_mode']
+        # Random Seed
         torch.manual_seed(latent_model_config['train_params']['manual_seed'])
         torch.cuda.manual_seed(latent_model_config['train_params']['manual_seed'])
         np.random.seed(latent_model_config['train_params']['manual_seed'])
+
+        with_yawRate = latent_model_config['model_params']['with_yawRate']
 
         # VAE model config
         try:
@@ -321,11 +321,10 @@ if __name__ == '__main__':
         
         # DataLoader
         if dataloader_type == 'simple':
-            
-
             all_data = LatentDataset_simple(dataset_dir,
                                     num_prvs=num_prvs,
                                     prvs_mode=prvs_mode,
+                                    with_yawRate=with_yawRate,
                                     resize=img_resize,
                                     transform=transform_composed)
             train_data, test_data = train_test_split(all_data,
@@ -334,10 +333,13 @@ if __name__ == '__main__':
             print('Load latent datasets successfully.')    
 
             # Create the agent
-            latent_model = latent_model[latent_model_type](**latent_model_config['model_params'])
             vae_model = vae_model[vae_model_type](**vae_model_config['model_params'])
             latent_model_config['log_params']['output_dir'] = output_dir
+            latent_model_config['model_params']['z_dim'] = vae_model.get_latent_dim()
+            latent_model = LatentNN(**latent_model_config['model_params'])
+            
             train_agent = LatentTrain(latent_model,
+                                vae_model_type,
                                 vae_model,
                                 vae_model_path,
                                 device,
@@ -353,27 +355,27 @@ if __name__ == '__main__':
         elif dataloader_type == 'advanced':
             for subject in subject_list:
                 all_data = LatentDataset_advanced(dataset_dir,
-                                    subject_list=[subject],
+                                    subject=subject,
                                     map_list=map_list,
-                                    iter=iteration,
-                                    num_prvs=num_prvs,
-                                    prvs_mode=prvs_mode,
+                                    iteration=iteration,
+                                    with_yawRate=with_yawRate,
                                     resize=img_resize,
                                     transform=transform_composed)
-
                 train_data, test_data = train_test_split(all_data,
                                                     test_size=config['dataset_params']['test_size'],
                                                     random_state=config['dataset_params']['manual_seed'])     
                 print('Load latent datasets successfully.')
                 
                 # Create the agent
-                latent_model = latent_model[latent_model_type](**latent_model_config['model_params'])
                 if vae_model_type in vae_model:
                     vae_model = vae_model[vae_model_type](**vae_model_config['model_params'])
                 elif vae_model_type in vaegan_model:
                     vae_model = vaegan_model[vae_model_type](**vae_model_config['model_params'])
                 latent_model_config['log_params']['output_dir'] = os.path.join(output_dir, subject, 'iter'+str(iteration))
+                latent_model_config['model_params']['z_dim'] = vae_model.get_latent_dim()
+                latent_model = LatentNN(**latent_model_config['model_params'])
                 train_agent = LatentTrain(latent_model,
+                                    vae_model_type,
                                     vae_model,
                                     vae_model_path,
                                     device,
@@ -384,4 +386,60 @@ if __name__ == '__main__':
                 print('\n*** Start training ***')
                 train_agent.load_dataset(train_data, test_data)
                 train_agent.train()
-                print('Trained Latent model successfully.')   
+                print('Trained Latent model successfully.')
+
+    # 4) * Controller Network
+    if config['train_params']['train_endToend']:
+        print('============= End to End Controller ==============')
+        img_resize = (64, 64)
+
+        # EndToEnd model config
+        try:
+            file = open(os.path.join(setup_path.parent_dir, 'configs', 'end_to_end.yaml'), 'r')
+            model_config = yaml.safe_load(file)
+            file.close()
+        except Exception as error:
+            print_msg(str(error), type=3)
+            exit()
+        
+        torch.manual_seed(model_config['train_params']['manual_seed'])
+        torch.cuda.manual_seed(model_config['train_params']['manual_seed'])
+        np.random.seed(model_config['train_params']['manual_seed'])
+        if model_config['model_params']['in_channels'] == 1:
+            transform_composed = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize((127.5), (127.5)), # from [0,255] to [-1,1]
+            ])    
+        elif model_config['model_params']['in_channels'] == 4:
+            transform_composed = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize((127.5, 127.5, 127.5, 127.5), (127.5, 127.5, 127.5, 127.5)), # from [0,255] to [-1,1]
+            ])   
+        # DataLoader
+        for subject in subject_list:
+            all_data = EndToEndDataset_advanced(dataset_dir,
+                                subject=subject,
+                                map_list=map_list,
+                                iteration=iteration,
+                                resize=img_resize,
+                                in_channels=model_config['model_params']['in_channels'],
+                                transform=transform_composed)
+
+            train_data, test_data = train_test_split(all_data,
+                                                test_size=config['dataset_params']['test_size'],
+                                                random_state=config['dataset_params']['manual_seed'])     
+            print('Load EndToEnd datasets successfully.')
+            
+            # Create the agent
+            ctrl_model = EndToEnd(**model_config['model_params'])
+            model_config['log_params']['output_dir'] = os.path.join(output_dir, subject, 'iter'+str(iteration))
+            train_agent = EndToEndTrain(ctrl_model,
+                                device,
+                                is_eval=False,
+                                train_params=model_config['train_params'],
+                                log_params=model_config['log_params'])
+                
+            print('\n*** Start training ***')
+            train_agent.load_dataset(train_data, test_data)
+            train_agent.train()
+            print('Trained EndToEnd model successfully.')    

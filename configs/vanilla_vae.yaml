@@ -1,12 +1,12 @@
 model_params:
   name:                   'VanillaVAE'
   in_channels:            3
-  z_dim:                  30
+  z_dim:                  64
   input_dim:              64
 
 train_params:
   batch_size:             128
-  n_epochs:               150
+  n_epochs:               20
   optimizer:
     type:                 'Adam'
     learning_rate:        0.0005
@@ -17,6 +17,6 @@ train_params:
 log_params:
   name:                   'vanilla_vae'
   log_interval:           5
-  checkpoint_preload:     True
+  checkpoint_preload:     False
   generate_samples:       True
   use_tensorboard:        True

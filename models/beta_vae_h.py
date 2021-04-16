@@ -3,7 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 from tqdm import tqdm
 
-from .vanilla_vae import Dronet, Decoder
+from .vanilla_vae import Encoder, Decoder
 
 # custom weights initialization
 def weights_init(m):
@@ -26,7 +26,7 @@ class BetaVAE_H(nn.Module):
                 **kwargs):
         super().__init__()
 
-        self.Encoder = Dronet(input_dim, z_dim, in_channels)
+        self.Encoder = Encoder(z_dim, in_channels)
         self.Decoder = Decoder(z_dim)
         self.Decoder.apply(weights_init)
         self.z_dim = z_dim
@@ -36,10 +36,13 @@ class BetaVAE_H(nn.Module):
         mu, logvar = self.Encoder(x)
         return mu, logvar
 
-    def reparameterize(self, mu, logvar):
-        std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
-        return mu + eps * std
+    def reparameterize(self, mu, logvar, with_logvar=True):
+        if with_logvar:
+            std = torch.exp(0.5 * logvar)
+            eps = torch.randn_like(std)
+            return mu + eps * std
+        else:
+            return mu
 
     def decode(self, z):
         x_recon = self.Decoder(z)
@@ -54,19 +57,19 @@ class BetaVAE_H(nn.Module):
     def loss_function(self, *args, **kwargs):
         x_recon = args[0]
         x = args[1]
-        mu = args[2]
+        mu = args[2]    
         logvar = args[3]
 
         batch_size = x_recon.size(0)
         mse = F.mse_loss(x_recon, x, reduction='sum').div(batch_size)
         kld = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())
-        kld_z = kld.mean(0)
+        # kld_z = kld.mean(0)
         kld = kld.sum(1).mean(0)        
         total_loss = mse + self.beta * kld
         return {'total_loss': total_loss,
                 'mse_loss': mse,
                 'kld_loss': kld,
-                'kld_loss_z': kld_z
+                # 'kld_loss_z': kld_z
             }
 
     def sample(self, n_samples, device=torch.device('cuda:0')):
@@ -74,9 +77,9 @@ class BetaVAE_H(nn.Module):
         samples = self.decode(z)
         return samples
 
-    def get_latent(self, x):
+    def get_latent(self, x, with_logvar=True):
         mu, logvar = self.encode(x)
-        z = self.reparameterize(mu, logvar)
+        z = self.reparameterize(mu, logvar, with_logvar)
         return z
 
     def get_latent_dim(self):

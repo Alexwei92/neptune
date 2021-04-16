@@ -4,8 +4,8 @@ from .beta_vae_b import BetaVAE_B
 from .factor_vae import FactorVAE
 from .vae_gan import VAEGAN
 from .dc_gan import DCGAN
-from .latent_nn_simple import LatentNN_simple
-from .latent_nn_complex import LatentNN_complex
+from .latent_nn import LatentNN
+from .end_to_end import EndToEnd
 
 # Model Dictionary
 vae_model = {
@@ -21,9 +21,4 @@ vaegan_model = {
 
 gan_model = {
     'dc_gan': DCGAN
-}
-
-latent_model = {
-    'latent_nn_simple': LatentNN_simple,
-    'latent_nn_complex': LatentNN_complex,
 }
