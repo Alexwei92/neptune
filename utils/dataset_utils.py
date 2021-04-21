@@ -467,11 +467,11 @@ class EndToEndDataset_advanced(Dataset):
         self.output = np.empty((0,), dtype=np.float32)
         self.transform = transform
         if in_channels == 1: # Depth
-            self.filename = 'image_data_preload_128_d.pt'
+            self.filename = 'image_data_preload_64_d.pt'
         elif in_channels == 3: # RGB
-            self.filename = 'image_data_preload_128.pt'
+            self.filename = 'image_data_preload_64.pt'
         elif in_channels == 4: # RGB-D
-            self.filename = 'image_data_preload_128_rgbd.pt'
+            self.filename = 'image_data_preload_64_rgbd.pt'
 
         # Configure
         self.configure(dataset_dir, resize, in_channels, preload)
@@ -501,7 +501,7 @@ class EndToEndDataset_advanced(Dataset):
             if in_channels == 1:
                 image_flip = cv2.flip(self.images_np[i,:], 1)
                 image_np_flip[i,:] = np.reshape(image_flip, (image_flip.shape[0],image_flip.shape[1],1))
-            elif in_channels == 3:
+            elif in_channels == 3 or in_channels == 4:
                 image_np_flip[i,:] = cv2.flip(self.images_np[i,:], 1)
         self.images_np = np.concatenate((self.images_np, image_np_flip), axis=0)
 

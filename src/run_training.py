@@ -409,7 +409,12 @@ if __name__ == '__main__':
             transform_composed = transforms.Compose([
                 transforms.ToTensor(),
                 transforms.Normalize((127.5), (127.5)), # from [0,255] to [-1,1]
-            ])    
+            ])       
+        elif model_config['model_params']['in_channels'] == 3:
+            transform_composed = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize((127.5, 127.5, 127.5), (127.5, 127.5, 127.5)), # from [0,255] to [-1,1]
+            ]) 
         elif model_config['model_params']['in_channels'] == 4:
             transform_composed = transforms.Compose([
                 transforms.ToTensor(),
