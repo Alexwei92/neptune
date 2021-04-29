@@ -37,7 +37,7 @@ if __name__ == '__main__':
     if not isinstance(initial_pose[0], tuple):
         initial_pose = (initial_pose, initial_pose) # to use random.choice properly
     random_start = config['sim_params']['random_start']
-
+    
     # Control settings
     max_yawRate = config['ctrl_params']['max_yawRate']
     forward_speed = config['ctrl_params']['forward_speed']
@@ -60,6 +60,13 @@ if __name__ == '__main__':
     plot_cmd = config['visualize_params']['plot_cmd']
     plot_trajectory = config['visualize_params']['plot_trajectory']
 
+    # If in eval mode
+    if train_mode == 'eval': # if in 'eval' mode
+        max_counter = config['eval_params']['max_counter']
+        random_start = False
+        save_data = False
+        data_logger_eval = Logger_eval(output_dir)
+
     # Fast Loop Init
     API_kwargs = {
         'agent_type': agent_type,
@@ -76,7 +83,7 @@ if __name__ == '__main__':
         'joystick': joy,
         'yaw_axis': yaw_axis,
         'type_axis': type_axis,
-        'mode_axis': mode_axis,                    
+        'mode_axis': mode_axis  
     }
     fast_loop = FastLoop(**API_kwargs)
 
@@ -100,7 +107,7 @@ if __name__ == '__main__':
                                 img_resize)
     elif agent_type == 'endToend':
         # End to End controller
-        img_resize = (64, 64)
+        img_resize = eval(config['agent_params']['img_resize'])
         model_path = os.path.join(folder_path, config['agent_params']['endToend_model_path'])
         controller_agent = EndToEndCtrl(model_path, img_resize)        
 
@@ -121,10 +128,14 @@ if __name__ == '__main__':
 
     # Reset function
     def reset():
-        if fast_loop.agent_type is not 'none':
-            fast_loop.controller.reset_cmd_history()
         if save_data:
             data_logger.reset_folder('crashed')
+        if train_mode == 'eval':
+            data_logger_eval.write_csv(fast_loop.total_time, fast_loop.total_distance, 'crashed')
+            fast_loop.total_time = 0
+            fast_loop.total_distance = 0
+        if fast_loop.agent_type is not 'none':
+            fast_loop.controller.reset_cmd_history()
         if plot_trajectory:
             disp_handle.trajectory_handle.reset()
 
@@ -163,11 +174,6 @@ if __name__ == '__main__':
                     data_logger.reset_folder('safe')
                     fast_loop.manual_stop = False
 
-                # if fast_loop.virtual_crash:
-                #     # when the pilot think it may crash
-                #     data_logger.reset_folder('virtual_crash')
-                #     fast_loop.virtual_crash = False
-
                 if fast_loop.flight_mode == 'mission':
                     data_logger.save_image('color', fast_loop.image_color)
                     data_logger.save_image('depth', fast_loop.image_depth)
@@ -205,6 +211,8 @@ if __name__ == '__main__':
                         disp_handle.update(fast_loop.image_color, fast_loop.agent_cmd, is_expert=False)
                 else:
                     raise Exception('Unknown dagger_type: ' + dagger_type)
+            elif train_mode == 'eval':
+                disp_handle.update(fast_loop.image_color, fast_loop.agent_cmd, is_expert=False)
             else:
                 raise Exception('Unknown train_mode: ' + train_mode)
 
@@ -228,6 +236,11 @@ if __name__ == '__main__':
             if (key == ord('k')):
                 fast_loop.force_reset = True
 
+            # when in eval mode
+            if train_mode == 'eval' and fast_loop.eval_counter >= max_counter:
+                print_msg('Finsh the evaluation process!', type=0)
+                break
+
     except Exception as error:
         print_msg(str(error), type=3)
 
@@ -241,4 +254,6 @@ if __name__ == '__main__':
         joy.clean()
         if save_data:
             data_logger.clean()
+        if train_mode == 'eval':
+            data_logger_eval.clean()
         print('Exit the program successfully!')

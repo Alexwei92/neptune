@@ -11,10 +11,10 @@ train_params:
   device:                     'cuda:0' # {'cuda:idx', 'cpu'} torch device
   image_size:                 (480, 640) # (Width, Height) of the input image
 
-  train_reg:                  False # enable train linear regression weights
+  train_reg:                  True # enable train linear regression weights
   preload_sample:             True # preload samples from file
   reg_num_prvs:               5 # number of previous cmd to use
-  reg_prvs_mode:              'exponential' # {'exponential', 'linear'} 
+  reg_prvs_mode:              'exponential' # {'exponexntial', 'linear'} 
   reg_type:                   'Ridge' # {'Ridge', 'LinearRegression', 'BayesianRidge'}
   reg_weight_filename:        'reg_weight.csv' # regression weight filename
   reg_model_filename:         'reg_model.pkl' # regression trained model filename
@@ -28,13 +28,13 @@ train_params:
   vae_model_type:             'vanilla_vae' # VAE model type
   vae_model_path:             'my_outputs/VAE64/vanilla_vae/vanilla_vae_model_z_64.pt' # VAE model file path
 
-  train_endToend:             True # enable train end to end
+  train_endToend:             False # enable train end to end
 
 # Dataset parameters
 dataset_params:
   test_size:                  0.1 # in percentage, used in train_test_split
   manual_seed:                11 # random state
-  iteration:                  1 # iteration number in DAgger
+  iteration:                  3 # iteration number in DAgger
   dataloader_type:            'advanced' # {'simple', 'advanced'}
   subject_list:               [ # subject list
                               # 'subject1',
@@ -46,11 +46,12 @@ dataset_params:
                               # 'subject7',
                               # 'subject8',
                               # 'subject9',
-                              # 'subject10',
+                              'subject10',
                               # 'subject11',
                               # 'subject12',
-                              'subject13',
+                              # 'subject13',
                               # "subject14",
+                              # "subject15",
                             ]
   map_list:                   [ # map list
                               'map1',

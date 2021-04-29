@@ -110,6 +110,9 @@ class EndToEnd(nn.Module):
                 **kwargs):
         super().__init__()
         
+        if in_channels == 3:
+            # use grayscale instead
+            in_channels = 1
         self.NN = Dronet(input_dim, in_channels)
 
     def forward(self, x):

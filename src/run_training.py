@@ -405,16 +405,16 @@ if __name__ == '__main__':
         torch.manual_seed(model_config['train_params']['manual_seed'])
         torch.cuda.manual_seed(model_config['train_params']['manual_seed'])
         np.random.seed(model_config['train_params']['manual_seed'])
-        if model_config['model_params']['in_channels'] == 1:
+        if model_config['model_params']['in_channels'] in [1,3]:
             transform_composed = transforms.Compose([
                 transforms.ToTensor(),
                 transforms.Normalize((127.5), (127.5)), # from [0,255] to [-1,1]
             ])       
-        elif model_config['model_params']['in_channels'] == 3:
-            transform_composed = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize((127.5, 127.5, 127.5), (127.5, 127.5, 127.5)), # from [0,255] to [-1,1]
-            ]) 
+        # elif model_config['model_params']['in_channels'] == 3:
+        #     transform_composed = transforms.Compose([
+        #         transforms.ToTensor(),
+        #         transforms.Normalize((127.5, 127.5, 127.5), (127.5, 127.5, 127.5)), # from [0,255] to [-1,1]
+        #     ]) 
         elif model_config['model_params']['in_channels'] == 4:
             transform_composed = transforms.Compose([
                 transforms.ToTensor(),

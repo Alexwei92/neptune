@@ -359,6 +359,7 @@ class LatentDataset_advanced(Dataset):
                     if os.path.isdir(folder_path):
                         for subfolder in os.listdir(folder_path):
                             subfolder_path = os.path.join(folder_path, subfolder)
+                            print(subfolder_path)
                             state_extra, output, N, pilot_index = self.read_telemetry(subfolder_path, with_yawRate)
                             if N is not None:
                                 self.output = np.concatenate((self.output, output[pilot_index]), axis=0)
@@ -463,13 +464,17 @@ class EndToEndDataset_advanced(Dataset):
         self.subject = subject
         self.map_list = map_list
         self.iteration = iteration
-        self.images_np = np.empty((0, resize[0], resize[1], in_channels), dtype=np.float32)
+        if in_channels in [1,3]:
+            self.images_np = np.empty((0, resize[0], resize[1], 1), dtype=np.float32)
+        else:
+            self.images_np = np.empty((0, resize[0], resize[1], in_channels), dtype=np.float32)
         self.output = np.empty((0,), dtype=np.float32)
         self.transform = transform
         if in_channels == 1: # Depth
             self.filename = 'image_data_preload_64_d.pt'
         elif in_channels == 3: # RGB
-            self.filename = 'image_data_preload_64.pt'
+            # self.filename = 'image_data_preload_64.pt'
+            self.filename = 'image_data_preload_64_gray.pt'
         elif in_channels == 4: # RGB-D
             self.filename = 'image_data_preload_64_rgbd.pt'
 
@@ -484,6 +489,7 @@ class EndToEndDataset_advanced(Dataset):
                     if os.path.isdir(folder_path):
                         for subfolder in os.listdir(folder_path):
                             subfolder_path = os.path.join(folder_path, subfolder)
+                            # print(subfolder_path)
                             output = self.read_telemetry(subfolder_path)
                             if output is not None:
                                 self.output = np.concatenate((self.output, output), axis=0)
@@ -496,12 +502,15 @@ class EndToEndDataset_advanced(Dataset):
                                 self.images_np = np.concatenate((self.images_np, images_np), axis=0)
         
         # Data Augmentation
-        image_np_flip =  np.empty((len(self.images_np), resize[0], resize[1], in_channels), dtype=np.float32)
+        if in_channels in [1,3]:
+            image_np_flip =  np.empty((len(self.images_np), resize[0], resize[1], 1), dtype=np.float32)
+        else:
+            image_np_flip =  np.empty((len(self.images_np), resize[0], resize[1], in_channels), dtype=np.float32)
         for i in range(len(self.images_np)):
-            if in_channels == 1:
+            if in_channels in [1,3]:
                 image_flip = cv2.flip(self.images_np[i,:], 1)
                 image_np_flip[i,:] = np.reshape(image_flip, (image_flip.shape[0],image_flip.shape[1],1))
-            elif in_channels == 3 or in_channels == 4:
+            elif in_channels == 4:
                 image_np_flip[i,:] = cv2.flip(self.images_np[i,:], 1)
         self.images_np = np.concatenate((self.images_np, image_np_flip), axis=0)
 
@@ -525,23 +534,34 @@ class EndToEndDataset_advanced(Dataset):
         return y
 
     def get_images(self, subfolder_path, save_to_filepath, resize, in_channels=3):
-        if in_channels in [1, 3]:
+        if in_channels in [1,3]:
             if in_channels == 1:
                 file_list = glob.glob(os.path.join(subfolder_path, 'depth', '*.png'))
             elif in_channels == 3:
                 file_list = glob.glob(os.path.join(subfolder_path, 'color', '*.png'))
         
             file_list.sort()
-            images_np = np.zeros((len(file_list), resize[0], resize[1], in_channels), dtype=np.float32)
+            if in_channels == 3:
+                images_np = np.zeros((len(file_list), resize[0], resize[1], 1), dtype=np.float32)
+            else:
+                images_np = np.zeros((len(file_list), resize[0], resize[1], in_channels), dtype=np.float32)
             idx = 0
             for file, idx in zip(file_list, range(len(file_list))):
                 img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
-                if in_channels == 3: # RGB
-                    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                img = cv2.resize(img, (resize[1], resize[0]))
                 if in_channels == 1: # depth
+                    img = cv2.resize(img, (resize[1], resize[0]))
                     img = np.reshape(img, (resize[1], resize[0], 1))
-                images_np[idx, :] = img[:,:,:in_channels]
+                    images_np[idx, :] = img[:,:,:1]
+                if in_channels == 3: # RGB -> Grayscale
+                    # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                    # img = cv2.resize(img, (resize[1], resize[0]))
+
+                    # use grayscale instead
+                    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                    img = cv2.resize(img, (resize[1], resize[0]))   
+                    img = np.reshape(img, (resize[1], resize[0], 1))
+
+                    images_np[idx, :] = img[:,:,:1]
         
         elif in_channels == 4:
             file_list_color = glob.glob(os.path.join(subfolder_path, 'color', '*.png'))

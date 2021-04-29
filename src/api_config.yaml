@@ -1,13 +1,13 @@
 ## Simulation parameters
 sim_params:
   loop_rate:                  10.0 # Hz
-  output_dir:                 'my_datasets/subject13/o2/iter1' # save data to this folder
+  output_dir:                 'my_datasets/subject10/o2/iter3' # save data to this folder
   folder_path:                '/media/lab/Hard Disk' # leave it '' if you read/write data in the current folder,
                                                      # otherwise specify the path (e.g., on hard disk)
   save_data:                  True # {True, False}
 
   train_mode:                 'train' # {'train', 'test', 'eval'}
-  agent_type:                 'endToend' # {'none', 'reg', 'latent', 'endToend'}
+  agent_type:                 'reg' # {'none', 'reg', 'latent', 'endToend'}
   dagger_type:                'hg' # {'none', 'vanilla', 'hg'}
 
   initial_pose:               (1,14,5,0), (118,-123,5,0)
@@ -22,6 +22,7 @@ sim_params:
                               # Map9: (0,0,5,0), (450,25,5,0)
                               # O1: (0,0,5,0), (118,123,5,0)
                               # O2: (1,14,5,0), (118,-123,5,0)
+                              # Map10: (0,0,5,0.5)
                               # Template:(0,0,5,0),(120,143,5,0),(56,66,5,0),(10,49,5,0),(45,112,5,0) 
                               # NH: (115,181,5,0)
   random_start:               True # add small value to the initial pose
@@ -53,13 +54,18 @@ agent_params:
   # Regression
   reg_num_prvs:               5 # number of previous cmd to use
   reg_prvs_mode:              'exponential' # {'exponential', 'linear'} type of prvs cmd
-  reg_model_path:             'my_outputs/subject1/iter1/reg/reg_model.pkl' # regression model file path
+  reg_model_path:             'my_outputs/subject10/iter2/reg/reg_model.pkl' # regression model file path
   
   # Latent NN
   img_resize:                 (64, 64) # resize image before VAE, right now only support (64, 64)
   vae_model_type:             'vanilla_vae' # VAE model type
   vae_model_path:             'my_outputs/VAE64/vanilla_vae/vanilla_vae_model_z_64.pt' # VAE model file path
-  latent_model_path:          'my_outputs/subject7/iter1/latent_nn_vanilla_vae/latent_nn_vanilla_vae_model_z_64.pt' # Latent model filepath
+  latent_model_path:          'my_outputs/subject4/iter3/latent_nn_vanilla_vae/latent_nn_vanilla_vae_model_z_64.pt' # Latent model filepath
 
   # EndToEnd
-  endToend_model_path:        'my_outputs/subject13/iter0/end_to_end/end_to_end_model.pt'
+  endToend_model_path:        'my_outputs/subject12/iter3/end_to_end/end_to_end_model.pt'
+
+## Evaluation parameters
+eval_params:  
+  max_counter:                5 # number of evaluation trials 
+  max_distance:               200 

@@ -30,20 +30,20 @@ class EndToEndCtrl():
         file.close()
         
         self.in_channels = model_config['model_params']['in_channels']
-        if self.in_channels == 1: # Depth
+        if self.in_channels in [1,3]: # Depth
             self.transform_composed = transforms.Compose([
                 transforms.ToTensor(),
                 transforms.Normalize((0.5), (0.5)), # from [0,255] to [-1,1]
             ])
-        elif self.in_channels == 3: # RGB
-            self.transform_composed = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)), # from [0,255] to [-1,1]
-            ])
+        # elif self.in_channels == 3: # RGB
+        #     self.transform_composed = transforms.Compose([
+        #         transforms.ToTensor(),
+        #         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)), # from [0,1] to [-1,1]
+        #     ])
         elif self.in_channels == 4: # RGB-D
             self.transform_composed = transforms.Compose([
                 transforms.ToTensor(),
-                transforms.Normalize((0.5, 0.5, 0.5, 0.5), (0.5, 0.5, 0.5, 0.5)), # from [0,255] to [-1,1]
+                transforms.Normalize((0.5, 0.5, 0.5, 0.5), (0.5, 0.5, 0.5, 0.5)), # from [0,1] to [-1,1]
             ])  
 
         model = torch.load(model_path)
@@ -57,8 +57,10 @@ class EndToEndCtrl():
             image_np = cv2.resize(image_np, (self.resize[1], self.resize[0]))
             image_np = np.reshape(image_np, (self.resize[1], self.resize[0], 1))
         elif self.in_channels == 3:
-            image_np = image_color.copy()
+            # Grayscale
+            image_np = cv2.cvtColor(image_color, cv2.COLOR_RGB2GRAY)
             image_np = cv2.resize(image_np, (self.resize[1], self.resize[0]))
+            image_np = np.reshape(image_np, (self.resize[1], self.resize[0], 1))
         elif self.in_channels == 4:
             image_color = image_color.copy()
             image_depth = image_depth.copy()

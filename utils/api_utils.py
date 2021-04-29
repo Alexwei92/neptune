@@ -27,6 +27,16 @@ def add_offset_to_pose(pose, pos_offset=1, yaw_offset=np.pi*2, enable_offset=Tru
         pose_without_offset = airsim.Pose(position, orientation)
         return pose_without_offset
 
+# Calculate the distance traveled between the frames
+def calculate_distance(last_pose, current_pose):
+    x_old = last_pose.kinematics_estimated.position.x_val
+    y_old = last_pose.kinematics_estimated.position.y_val
+    x_new = current_pose.kinematics_estimated.position.x_val
+    y_new = current_pose.kinematics_estimated.position.y_val
+    distance = np.sqrt((x_new-x_old)**2 + (y_new-y_old)**2)
+    return distance
+
+
 # Get yaw from orientation
 def get_yaw_from_orientation(orientation):
     pitch, roll, yaw = airsim.to_eularian_angles(orientation) # in radians
@@ -73,6 +83,12 @@ class FastLoop():
         self.random_start = kwargs.get('random_start')
         self.loop_rate = kwargs.get('loop_rate')
         self.train_mode = kwargs.get('train_mode')
+        if self.train_mode == 'eval':
+            self.eval_counter = 0
+            self.total_distance = 0
+            self.total_time = 0
+            self.wait_time = 3.0
+            self.last_state = None
         
         # controller
         self.agent_type = kwargs.get('agent_type') 
@@ -108,7 +124,6 @@ class FastLoop():
         self.trigger_reset = False # to trigger external reset function
         self.force_reset = False # from external to force reset
         self.manual_stop = False # if pilot manually stop the mission
-        self.virtual_crash = False # for a virtual crash in HG-Dagger
 
         # Connect to the AirSim simulator
         self.client = airsim.MultirotorClient()
@@ -122,7 +137,7 @@ class FastLoop():
         self.client.takeoffAsync()
 
         # Initial pose
-        self.client.simSetVehiclePose(add_offset_to_pose(random.choice(self.initial_pose), self.random_start), ignore_collison=True)
+        self.client.simSetVehiclePose(add_offset_to_pose(random.choice(self.initial_pose), enable_offset=self.random_start), ignore_collison=True)
         time.sleep(0.5)
 
         # Controller Init
@@ -131,7 +146,6 @@ class FastLoop():
                     self.mission_height,
                     self.max_yawRate,
                     self.use_rangefinder)
-
 
     # Collision
     def set_collision(self):
@@ -175,8 +189,6 @@ class FastLoop():
                 self.is_expert = is_expert
                 if is_expert:
                     print_msg('Switch to manual control')
-                    # if self.flight_mode is 'mission' and self.dagger_type is 'hg':
-                    #     self.virtual_crash = True # when the pilot think it may crash (HG-dagger)
                 else:
                     print_msg('Switch to agent control')
             
@@ -185,11 +197,18 @@ class FastLoop():
 
     # Fast loop
     def run(self):
+        # if in eval mode
+        if self.train_mode == 'eval':
+            self.eval_last_time = time.perf_counter()
+        
         while self.is_active:
             start_time = time.perf_counter()
 
             # Check collision
             if self.client.simGetCollisionInfo().has_collided:
+                if self.train_mode == 'eval':
+                    self.total_time = time.perf_counter() - self.eval_last_time - self.wait_time
+                    self.eval_last_time = time.perf_counter()
                 self.reset_api()
 
             # Force Reset
@@ -201,17 +220,31 @@ class FastLoop():
             self.pilot_cmd = round(self.joy.get_input(self.yaw_axis), PRECISION) # round to precision
         
             # Update flight mode from RC/joystick
-            self.set_flight_mode(self.joy.get_input(self.mode_axis))
-            
+            if self.train_mode == 'eval' and (time.perf_counter() - self.eval_last_time > self.wait_time):
+                self.flight_mode = 'mission'
+            else:
+                self.set_flight_mode(self.joy.get_input(self.mode_axis))
+
             # Update controller type from RC/joystick
-            self.set_controller_type(self.joy.get_input(self.type_axis))
+            if self.train_mode == 'eval':
+                self.is_expert = False # always use agent controller in eval mode
+            else:
+                self.set_controller_type(self.joy.get_input(self.type_axis))
 
             # Update state
             try:
                 self.drone_state = self.client.getMultirotorState()
             except:
                 pass # buffer issue
-            
+
+            # Update distance traveled
+            if self.train_mode == 'eval' and self.drone_state:
+                if self.last_state is None:
+                    self.last_state = self.drone_state
+                else:
+                    self.total_distance += calculate_distance(self.last_state, self.drone_state)
+                    # self.total_time = 
+                
             # Update yaw
             current_yaw = get_yaw_from_orientation(self.drone_state.kinematics_estimated.orientation)
             self.controller.set_current_yaw(current_yaw)
@@ -245,7 +278,7 @@ class FastLoop():
                 try:
                     self.controller.step(self.pilot_cmd, estimated_height, self.flight_mode)
                 except:
-                    pass
+                    pass # buffer issue
             else:
                 self.controller.step(self.agent_cmd, estimated_height, 'mission')
 
@@ -264,11 +297,14 @@ class FastLoop():
         self.client.reset()
         self.client.enableApiControl(True)
         self.client.armDisarm(True)
-        self.client.simSetVehiclePose(add_offset_to_pose(random.choice(self.initial_pose), self.random_start), ignore_collison=True)      
+        self.client.simSetVehiclePose(add_offset_to_pose(random.choice(self.initial_pose), enable_offset=self.random_start), ignore_collison=True)      
 
         if self.use_rangefinder:
             self.rangefinder.reset()
             self.controller.reset_pid()
+
+        if self.train_mode == 'eval':
+            self.eval_counter += 1
 
     def clean(self):
         self.client.armDisarm(False)
@@ -331,6 +367,45 @@ class Logger():
         if self.index == 0:
             # delete the folder if no content
             shutil.rmtree(self.folder_path)
+
+class Logger_eval():
+    '''
+    Data logger for evaluation
+    '''
+    def __init__(self, root_dir):
+        if not os.path.isdir(root_dir):
+            os.makedirs(root_dir)
+        self.root_dir = root_dir
+        # Configure folder
+        self.configure_folder()
+
+    def configure_folder(self):
+        self.file_path = os.path.join(self.root_dir, 'eval_result.csv')
+        self.file = open(self.file_path, 'w', newline='')
+        self.filewriter = csv.writer(self.file, delimiter=',')
+
+        self.filewriter.writerow([
+            'index',
+            'total_time',
+            'total_distance',
+            'status'])
+        self.flag = 0
+        self.index = 0
+
+    def write_csv(self, total_time, total_distance, status):
+        values = [
+            self.index+1, # index
+            round(total_time, PRECISION), # total time
+            round(total_distance, PRECISION), # total distance
+            status] # status of the trial
+        self.filewriter.writerow(values)
+        self.index += 1
+        
+    def clean(self):
+        self.file.close()
+        if self.index == 0:
+            # delete the folder if no content
+            shutil.rmtree(self.file_path)
 
 class Display():
     '''
