@@ -86,4 +86,15 @@ class LatentCtrl():
             y_pred = 0.0
         
         return np.clip(y_pred, -1.0, 1.0)
+
+    def reconstruct_image(self, image_color):
+        image_np = image_color.copy()
+        image_np = cv2.resize(image_np, (self.resize[1], self.resize[0]))
+        image_tensor = self.transform_composed(image_np)
+        
+        self.VAE_model.eval()
+        with torch.no_grad():
+            reconst_image = self.VAE_model(image_tensor.unsqueeze(0).to(self.device))
+            
+        return reconst_image[0].cpu().squeeze(0), reconst_image[1].cpu().squeeze(0)
     

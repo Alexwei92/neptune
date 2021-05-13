@@ -266,7 +266,10 @@ class RegTrain_single_advanced():
         self.map_list = kwargs.get('map_list')
         self.iteration = kwargs.get('iteration')
 
-        self.X = np.empty((0, FeatureExtract.get_size(feature_config, self.image_size) + self.num_prvs + 1))
+        if self.num_prvs == 0:
+            self.X = np.empty((0, FeatureExtract.get_size(feature_config, self.image_size)))
+        else:
+            self.X = np.empty((0, FeatureExtract.get_size(feature_config, self.image_size) + self.num_prvs + 1))
         self.y = np.empty((0,))
 
         # Main function
@@ -333,9 +336,13 @@ class RegTrain_single_advanced():
                 pandas.DataFrame(X).to_pickle(file_path) 
 
             # Combine output
-            X = np.column_stack((X[pilot_index,:], X_extra))
+            if X_extra is not None:
+                X = np.column_stack((X[pilot_index,:], X_extra[pilot_index,:]))
+            else:
+                X = X[pilot_index,:]
             # print('Load samples from {:s} successfully.'.format(subfolder_dir))  
-            return X, y
+            # print(X.shape, y.shape)
+            return X, y[pilot_index]
         else:
             return None, None
 
@@ -373,12 +380,12 @@ class RegTrain_single_advanced():
             # X_extra = [y_prvs, yawRate]
             X_extra = np.concatenate((y_prvs, yawRate_norm), axis=1)
         else:
-            X_extra = yawRate_norm
+            X_extra = None
         
         # flag
         flag = telemetry_data['flag'][:N].to_numpy()
         pilot_index = (flag == 0)
-        return X_extra[pilot_index,:], y[pilot_index], N, pilot_index
+        return X_extra, y, N, pilot_index
        
     def train(self):
         result = calculate_regression(self.X, self.y, method=self.reg_type)

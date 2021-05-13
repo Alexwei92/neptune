@@ -20,7 +20,7 @@ class EndToEndCtrl():
         self.load_model(model_path)
         self.resize = img_resize
 
-        print('The latent controller is initialized.')
+        print('The End2End controller is initialized.')
 
     def load_model(self, model_path):
         curr_dir = os.path.dirname(os.path.abspath(__file__))

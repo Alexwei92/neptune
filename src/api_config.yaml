@@ -1,16 +1,16 @@
 ## Simulation parameters
 sim_params:
   loop_rate:                  10.0 # Hz
-  output_dir:                 'my_datasets/subject10/o2/iter3' # save data to this folder
+  output_dir:                 'my_datasets/subject1/eval' # save data to this folder
   folder_path:                '/media/lab/Hard Disk' # leave it '' if you read/write data in the current folder,
                                                      # otherwise specify the path (e.g., on hard disk)
-  save_data:                  True # {True, False}
+  save_data:                  False # {True, False}
 
-  train_mode:                 'train' # {'train', 'test', 'eval'}
+  train_mode:                 'eval' # {'train', 'test', 'eval'}
   agent_type:                 'reg' # {'none', 'reg', 'latent', 'endToend'}
-  dagger_type:                'hg' # {'none', 'vanilla', 'hg'}
+  dagger_type:                'none' # {'none', 'vanilla', 'hg'}
 
-  initial_pose:               (1,14,5,0), (118,-123,5,0)
+  initial_pose:               (0,0,5,0.5)
                               # a set of (pos_x, pos_y, pos_z, yaw) 
                               # Map1: (0,0,5,0), (450,-26,5,0)
                               # Map2: (0,0,5,0), (467,12,5,0)
@@ -22,10 +22,11 @@ sim_params:
                               # Map9: (0,0,5,0), (450,25,5,0)
                               # O1: (0,0,5,0), (118,123,5,0)
                               # O2: (1,14,5,0), (118,-123,5,0)
-                              # Map10: (0,0,5,0.5)
+                              # Map10: (0,0,5,0.5),(214,2,5,3)
+                              # Map11: (-10,-10,5,0.75),(205,7,5,-3)
                               # Template:(0,0,5,0),(120,143,5,0),(56,66,5,0),(10,49,5,0),(45,112,5,0) 
                               # NH: (115,181,5,0)
-  random_start:               True # add small value to the initial pose
+  random_start:               False # add small value to the initial pose
                                      
 ## Controller parameters
 ctrl_params:
@@ -41,7 +42,7 @@ rc_params:
   yaw_axis:                   3 # yaw axis
   mode_axis:                  5 # flight mode axis (e.g., hover, mission)
   type_axis:                  6 # controller type axis (e.g., pilot, agent)
-  use_keyboard:               False # use keyboard
+  use_keyboard:               True # use keyboard
 
 ## Visualize parameters
 visualize_params:
@@ -52,20 +53,22 @@ visualize_params:
 ## Agent controller parameters
 agent_params:
   # Regression
-  reg_num_prvs:               5 # number of previous cmd to use
+  reg_num_prvs:               0 # number of previous cmd to use
   reg_prvs_mode:              'exponential' # {'exponential', 'linear'} type of prvs cmd
-  reg_model_path:             'my_outputs/subject10/iter2/reg/reg_model.pkl' # regression model file path
+  reg_model_path:             'my_outputs/subject1/iter4/reg/reg_model.pkl' # regression model file path
   
   # Latent NN
   img_resize:                 (64, 64) # resize image before VAE, right now only support (64, 64)
   vae_model_type:             'vanilla_vae' # VAE model type
   vae_model_path:             'my_outputs/VAE64/vanilla_vae/vanilla_vae_model_z_64.pt' # VAE model file path
-  latent_model_path:          'my_outputs/subject4/iter3/latent_nn_vanilla_vae/latent_nn_vanilla_vae_model_z_64.pt' # Latent model filepath
+  latent_model_path:          'my_outputs/subject7/iter3/latent_nn_vanilla_vae/latent_nn_vanilla_vae_model_z_64.pt' # Latent model filepath
 
   # EndToEnd
-  endToend_model_path:        'my_outputs/subject12/iter3/end_to_end/end_to_end_model.pt'
+  endToend_model_path:        'my_outputs/subject11/iter3/end_to_end/end_to_end_model.pt'
 
 ## Evaluation parameters
 eval_params:  
   max_counter:                5 # number of evaluation trials 
-  max_distance:               200 
+  max_distance:               210 # maximum x distance for one trail
+  show_process_time:          False # print out the processing time
+  max_time_counter:           100 # number of time steps used to calculate the processing time

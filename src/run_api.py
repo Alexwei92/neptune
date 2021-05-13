@@ -60,12 +60,20 @@ if __name__ == '__main__':
     plot_cmd = config['visualize_params']['plot_cmd']
     plot_trajectory = config['visualize_params']['plot_trajectory']
 
-    # If in eval mode
+    # If in Evaluation mode
     if train_mode == 'eval': # if in 'eval' mode
         max_counter = config['eval_params']['max_counter']
-        random_start = False
+        max_distance = config['eval_params']['max_distance']
+        max_time_counter = config['eval_params']['max_time_counter']
+        show_process_time = config['eval_params']['show_process_time']
         save_data = False
+        random_start = False
+        eval_counter = 0
+        if show_process_time:
+            time_history = []
+            print_result = True
         data_logger_eval = Logger_eval(output_dir)
+    
 
     # Fast Loop Init
     API_kwargs = {
@@ -127,13 +135,16 @@ if __name__ == '__main__':
         data_logger = Logger(output_dir)
 
     # Reset function
+    eval_counter = 0
     def reset():
         if save_data:
             data_logger.reset_folder('crashed')
         if train_mode == 'eval':
-            data_logger_eval.write_csv(fast_loop.total_time, fast_loop.total_distance, 'crashed')
-            fast_loop.total_time = 0
-            fast_loop.total_distance = 0
+            print('Total time (s) = {:.3f}, Total distance (m) = {:.3f}, Total x_distance (m) = {:.3f}, Status = {:s}'.format(
+                    fast_loop.total_time, fast_loop.total_distance, fast_loop.total_distance_x, fast_loop.status))
+            data_logger_eval.write_csv(fast_loop.total_time, fast_loop.total_distance, 
+                                        fast_loop.total_distance_x, fast_loop.status)
+            fast_loop.eval_reset()
         if fast_loop.agent_type is not 'none':
             fast_loop.controller.reset_cmd_history()
         if plot_trajectory:
@@ -159,14 +170,15 @@ if __name__ == '__main__':
 
         time.sleep(1.0)
         print_msg("Ready to fly!", type=1)
+
         while True:
             start_time = time.perf_counter() # loop start time
                       
             # If reset
             if fast_loop.trigger_reset:
-                reset()
                 fast_loop.trigger_reset = False
-
+                reset()
+                
             # Data logging
             if save_data:
                 if fast_loop.manual_stop:
@@ -183,6 +195,7 @@ if __name__ == '__main__':
                                         fast_loop.agent_cmd)
 
             # Update agent controller command
+            tic = time.perf_counter()
             if (not fast_loop.is_expert) and (fast_loop.flight_mode == 'mission'):
                 if agent_type == 'reg':
                     fast_loop.agent_cmd = controller_agent.predict(fast_loop.image_color, fast_loop.image_depth, \
@@ -194,6 +207,17 @@ if __name__ == '__main__':
                         fast_loop.agent_cmd = controller_agent.predict(fast_loop.image_color, fast_loop.image_depth)       
                 else:
                     raise Exception('You must define an agent controller type!')
+                
+                # Calculate the processing time
+                if train_mode == 'eval' and show_process_time:
+                    if len(time_history) < max_time_counter:
+                        time_history.append(time.perf_counter() - tic)
+                        print_result = True
+                    elif print_result:
+                        time_history_np = np.array(time_history)
+                        print('Process time: mean = {:.4f} s, std = {:.4f} s'.format(np.mean(time_history_np), np.std(time_history_np)))
+                        time_history = []
+                        print_result = False
 
             # Update plots
             if train_mode == 'test':
@@ -223,7 +247,8 @@ if __name__ == '__main__':
             # Ensure that the loop is running at a fixed rate
             elapsed_time = time.perf_counter() - start_time
             if (1./loop_rate - elapsed_time) < 0.0:
-                print_msg('The controller loop is running at {:.2f} Hz, expected {:.2f} Hz!'.format(1./elapsed_time, loop_rate), type=2)
+                # print_msg('The controller loop is running at {:.2f} Hz, expected {:.2f} Hz!'.format(1./elapsed_time, loop_rate), type=2)
+                pass
             else:
                 time.sleep(1./loop_rate - elapsed_time)
 
@@ -237,9 +262,14 @@ if __name__ == '__main__':
                 fast_loop.force_reset = True
 
             # when in eval mode
-            if train_mode == 'eval' and fast_loop.eval_counter >= max_counter:
-                print_msg('Finsh the evaluation process!', type=0)
-                break
+            if train_mode == 'eval':
+                if fast_loop.eval_counter >= max_counter:
+                    print_msg('Finsh the evaluation process!', type=0)
+                    break
+            
+                if fast_loop.total_distance_x >= max_distance:
+                    # print_msg('Finsh the trail successfully!', type=0)
+                    fast_loop.force_reset = True
 
     except Exception as error:
         print_msg(str(error), type=3)

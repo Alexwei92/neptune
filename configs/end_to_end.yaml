@@ -5,7 +5,7 @@ model_params:
 
 train_params:
   batch_size:             64
-  n_epochs:               150
+  n_epochs:               400
   optimizer:
     type:                 'Adam'
     learning_rate:        0.0005

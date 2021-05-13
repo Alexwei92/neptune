@@ -36,8 +36,6 @@ class RegCtrl():
             for index in self.prvs_index:
                 X = np.append(X, cmd_history[-index])
             X = np.append(X, yawRate_norm)
-        else:
-            X = yawRate_norm
         
         if self.file_type == 'csv':
             y_pred = np.dot(self.weight[1:], X)

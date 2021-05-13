@@ -41,8 +41,6 @@ class FeatureExtract():
             init_function()
         self.feature_result = np.zeros(self.size_each_window * len(self.H_points) * len(self.W_points))
 
-
-
     """
     @ Sliding Window
     """

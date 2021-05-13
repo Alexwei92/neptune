@@ -34,8 +34,12 @@ def calculate_distance(last_pose, current_pose):
     x_new = current_pose.kinematics_estimated.position.x_val
     y_new = current_pose.kinematics_estimated.position.y_val
     distance = np.sqrt((x_new-x_old)**2 + (y_new-y_old)**2)
-    return distance
+    x_distance = x_new - x_old
 
+    if distance > 5:
+        return 0, 0
+    else:
+        return distance, x_distance
 
 # Get yaw from orientation
 def get_yaw_from_orientation(orientation):
@@ -84,11 +88,13 @@ class FastLoop():
         self.loop_rate = kwargs.get('loop_rate')
         self.train_mode = kwargs.get('train_mode')
         if self.train_mode == 'eval':
-            self.eval_counter = 0
             self.total_distance = 0
+            self.total_distance_x = 0
             self.total_time = 0
             self.wait_time = 3.0
             self.last_state = None
+            self.status = 'safe'
+            self.eval_counter = 0
         
         # controller
         self.agent_type = kwargs.get('agent_type') 
@@ -123,6 +129,8 @@ class FastLoop():
         self.agent_cmd = 0.0
         self.trigger_reset = False # to trigger external reset function
         self.force_reset = False # from external to force reset
+        self.has_reset = False
+        self.reset_time = None
         self.manual_stop = False # if pilot manually stop the mission
 
         # Connect to the AirSim simulator
@@ -148,14 +156,14 @@ class FastLoop():
                     self.use_rangefinder)
 
     # Collision
-    def set_collision(self):
-        self.trigger_reset = True # trigger external reset function
-        if self.flight_mode is 'mission':
+    def set_collision(self, print_out):
+        self.has_collided = True
+        self.flight_mode = 'hover' # Hover by default
+        if print_out:
             print_msg('Collision occurred! API is reset to a random initial pose.', type=3)
             print_msg('Please reset the stick to its neutral position first!', type=2)
-            self.has_collided = True
-            self.flight_mode = 'hover' # Hover by default
             print_msg('{:s} flight mode'.format(self.flight_mode.capitalize()))
+        
         
     # Flight Mode
     def set_flight_mode(self, joy_input):
@@ -209,19 +217,24 @@ class FastLoop():
                 if self.train_mode == 'eval':
                     self.total_time = time.perf_counter() - self.eval_last_time - self.wait_time
                     self.eval_last_time = time.perf_counter()
-                self.reset_api()
+                    self.status = 'crashed'
+                self.reset_api(True)
 
             # Force Reset
             if self.force_reset:
-                self.reset_api()
-                self.force_reset = False
-
+                if not self.has_reset:
+                    if self.train_mode == 'eval':
+                        self.total_time = time.perf_counter() - self.eval_last_time - self.wait_time
+                        self.eval_last_time = time.perf_counter()
+                    self.reset_api(False)
+                    self.force_reset = False
+                
             # Update pilot yaw command from RC/joystick
             self.pilot_cmd = round(self.joy.get_input(self.yaw_axis), PRECISION) # round to precision
         
             # Update flight mode from RC/joystick
             if self.train_mode == 'eval' and (time.perf_counter() - self.eval_last_time > self.wait_time):
-                self.flight_mode = 'mission'
+                self.flight_mode = 'mission'    
             else:
                 self.set_flight_mode(self.joy.get_input(self.mode_axis))
 
@@ -242,8 +255,10 @@ class FastLoop():
                 if self.last_state is None:
                     self.last_state = self.drone_state
                 else:
-                    self.total_distance += calculate_distance(self.last_state, self.drone_state)
-                    # self.total_time = 
+                    distance, distance_x = calculate_distance(self.last_state, self.drone_state)
+                    self.total_distance += distance
+                    self.total_distance_x += distance_x
+                    self.last_state = self.drone_state
                 
             # Update yaw
             current_yaw = get_yaw_from_orientation(self.drone_state.kinematics_estimated.orientation)
@@ -280,20 +295,37 @@ class FastLoop():
                 except:
                     pass # buffer issue
             else:
-                self.controller.step(self.agent_cmd, estimated_height, 'mission')
+                self.controller.step(self.agent_cmd, estimated_height, 'mission')          
+
+            # Avoid duplicated reset
+            if self.reset_time is not None:
+                if time.perf_counter() - self.reset_time > 1.0:
+                    self.has_reset = False
 
             # Force the loop rate
             elapsed_time = time.perf_counter() - start_time
             if elapsed_time > 1./self.loop_rate:
-                print_msg('The fast loop is running at {:.2f} Hz, expected {:.2f} Hz!'.format(1./elapsed_time, self.loop_rate), type=2)
+                # print_msg('The fast loop is running at {:.2f} Hz, expected {:.2f} Hz!'.format(1./elapsed_time, self.loop_rate), type=2)
+                pass
             else:
                 time.sleep(1./self.loop_rate - elapsed_time) 
         
         self.clean()
 
+    # Reset eval
+    def eval_reset(self):
+        self.total_time = 0
+        self.total_distance = 0
+        self.total_distance_x = 0
+        self.status = 'safe'
+        self.eval_counter += 1
+
     # Reset the API after collision
-    def reset_api(self):
-        self.set_collision()
+    def reset_api(self, print_out):
+        self.reset_time = time.perf_counter()
+        if self.flight_mode is 'mission':
+            self.set_collision(print_out)
+        self.trigger_reset = True
         self.client.reset()
         self.client.enableApiControl(True)
         self.client.armDisarm(True)
@@ -303,8 +335,7 @@ class FastLoop():
             self.rangefinder.reset()
             self.controller.reset_pid()
 
-        if self.train_mode == 'eval':
-            self.eval_counter += 1
+        self.has_reset = True
 
     def clean(self):
         self.client.armDisarm(False)
@@ -388,15 +419,17 @@ class Logger_eval():
             'index',
             'total_time',
             'total_distance',
+            'total_distance_x',
             'status'])
         self.flag = 0
         self.index = 0
 
-    def write_csv(self, total_time, total_distance, status):
+    def write_csv(self, total_time, total_distance, total_distance_x, status):
         values = [
             self.index+1, # index
             round(total_time, PRECISION), # total time
             round(total_distance, PRECISION), # total distance
+            round(total_distance_x, PRECISION), # total distance in x
             status] # status of the trial
         self.filewriter.writerow(values)
         self.index += 1
